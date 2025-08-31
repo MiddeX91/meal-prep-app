@@ -16,10 +16,12 @@
     <h1>Rezept-Upload zu Firestore</h1>
     <p>Wähle eine <code>.json</code>-Datei aus.</p>
     
-    <input type="file" id="json-file-input" accept=".json">
-    <button id="upload-button" disabled>Hochladen</button>
+<input type="file" id="json-file-input" accept=".json">
 
-    <div id="status">Warte auf Datei...</div>
+<button id="upload-button" disabled>Neue Zutaten hochladen</button>
+<button id="fix-misc-btn" class="button-secondary">"Sonstiges" aufräumen</button>
+
+<div id="status">Warte auf Datei...</div>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>

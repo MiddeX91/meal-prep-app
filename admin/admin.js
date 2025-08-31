@@ -1,7 +1,11 @@
+// === DOM-ELEMENTE ===
 const fileInput = document.getElementById('json-file-input');
 const uploadButton = document.getElementById('upload-button');
+const fixMiscButton = document.getElementById('fix-misc-btn');
 const statusDiv = document.getElementById('status');
 let recipesToUpload = [];
+
+// === EVENT LISTENER ===
 
 // Event Listener für die Dateiauswahl
 fileInput.addEventListener('change', (event) => {
@@ -14,8 +18,9 @@ fileInput.addEventListener('change', (event) => {
     const reader = new FileReader();
     reader.onload = (e) => {
         try {
+            // Wir nehmen an, dass die Datei eine Liste von Zutaten-Objekten ist
             recipesToUpload = JSON.parse(e.target.result);
-            statusDiv.textContent = `${recipesToUpload.length} Rezept(e) zum Hochladen bereit.`;
+            statusDiv.textContent = `${recipesToUpload.length} Zutat(en) in der Datei gefunden. Bereit zum Hochladen.`;
             uploadButton.disabled = false;
         } catch (error) {
             statusDiv.textContent = 'Fehler: Die Datei ist keine gültige JSON-Datei.\n' + error;
@@ -25,16 +30,15 @@ fileInput.addEventListener('change', (event) => {
     reader.readAsText(file);
 });
 
-// in admin/admin.js
-
+// Event Listener für den Upload-Button (nur für neue Zutaten)
 uploadButton.addEventListener('click', async () => {
     if (recipesToUpload.length === 0) {
-        statusDiv.textContent = 'Keine Zutaten zum Hochladen vorhanden.';
+        statusDiv.textContent = 'Keine Datei ausgewählt oder Datei ist leer.';
         return;
     }
-    
-    statusDiv.textContent = 'Starte Kategorisierung...\n';
+    statusDiv.textContent = 'Starte Kategorisierung für NEUE Zutaten...\n';
     uploadButton.disabled = true;
+    fixMiscButton.disabled = true;
 
     const lexikonSnapshot = await db.collection('zutatenLexikon').get();
     const existingLexikon = {};
@@ -42,39 +46,39 @@ uploadButton.addEventListener('click', async () => {
         existingLexikon[doc.id] = doc.data().kategorie;
     });
 
-    // NEUE LOGIK: Wir erstellen eine "Warteschlange"
     const ingredientsToCategorize = [];
     recipesToUpload.forEach(item => {
-        const key = item.name.toLowerCase();
+        const key = item.name.toLowerCase().replace(/\//g, '-');
         if (!existingLexikon[key]) {
-            ingredientsToCategorize.push(item.name);
+            ingredientsToCategorize.push(item);
         } else {
             statusDiv.textContent += `- Zutat "${item.name}" ist bereits bekannt.\n`;
         }
     });
-
+    
     if (ingredientsToCategorize.length === 0) {
-        statusDiv.textContent += "\n🎉 Kategorisierung abgeschlossen! (Nichts zu tun)";
+        statusDiv.textContent += "\nKeine neuen Zutaten gefunden.";
         uploadButton.disabled = false;
+        fixMiscButton.disabled = false;
         return;
     }
     
-    // Verarbeite die Warteschlange mit einer Pause zwischen den Anfragen
-    for (const ingredientName of ingredientsToCategorize) {
+    for (const ingredient of ingredientsToCategorize) {
         try {
-            statusDiv.textContent += `- Frage KI nach Kategorie für "${ingredientName}"...\n`;
+            statusDiv.textContent += `- Frage KI nach Kategorie für "${ingredient.name}"...\n`;
             
             const response = await fetch('/.netlify/functions/categorize-ingredient', {
                 method: 'POST',
-                body: JSON.stringify({ ingredientName: ingredientName })
+                body: JSON.stringify({ ingredientName: ingredient.name })
             });
             
             if (!response.ok) throw new Error('Antwort vom Backend war nicht ok.');
 
             const { category } = await response.json();
+            const ingredientKey = ingredient.name.toLowerCase().replace(/\//g, '-');
             
-            await db.collection('zutatenLexikon').doc(ingredientName.toLowerCase()).set({
-                name: ingredientName,
+            await db.collection('zutatenLexikon').doc(ingredientKey).set({
+                name: ingredient.name,
                 kategorie: category
             });
             
@@ -83,12 +87,56 @@ uploadButton.addEventListener('click', async () => {
         } catch (error) {
             statusDiv.textContent += `  -> KI-Anfrage fehlgeschlagen: ${error}\n`;
         }
-        
-        // WICHTIG: Warte 2 Sekunden bis zur nächsten Anfrage, um das Limit nicht zu überschreiten
-        await new Promise(resolve => setTimeout(resolve, 2000)); 
+        await new Promise(resolve => setTimeout(resolve, 2000));
     }
-
-    statusDiv.textContent += "\n🎉 Kategorisierung abgeschlossen!";
+    
+    statusDiv.textContent += "\n🎉 Prozess für neue Zutaten abgeschlossen!";
     uploadButton.disabled = false;
+    fixMiscButton.disabled = false;
 });
 
+// Eigener Event Listener für den "Aufräumen"-Button
+fixMiscButton.addEventListener('click', async () => {
+    statusDiv.textContent = 'Starte Aufräum-Prozess...\nSuche nach "Sonstiges"-Einträgen im Lexikon...\n';
+    uploadButton.disabled = true;
+    fixMiscButton.disabled = true;
+
+    const snapshot = await db.collection('zutatenLexikon').where('kategorie', '==', 'Sonstiges').get();
+    
+    if (snapshot.empty) {
+        statusDiv.textContent += 'Keine Zutaten in der Kategorie "Sonstiges" gefunden.';
+        uploadButton.disabled = false;
+        fixMiscButton.disabled = false;
+        return;
+    }
+
+    const itemsToFix = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    statusDiv.textContent += `${itemsToFix.length} "Sonstiges"-Einträge gefunden. Starte KI-Anfrage...\n`;
+
+    for (const item of itemsToFix) {
+        try {
+            const response = await fetch('/.netlify/functions/categorize-ingredient', {
+                method: 'POST',
+                body: JSON.stringify({ ingredientName: item.name })
+            });
+            if (!response.ok) throw new Error('Antwort vom Backend war nicht ok.');
+
+            const { category } = await response.json();
+            
+            if (category !== 'Sonstiges') {
+                await db.collection('zutatenLexikon').doc(item.id).update({ kategorie: category });
+                statusDiv.textContent += `  -> "${item.name}" wurde zu "${category}" geändert.\n`;
+            } else {
+                statusDiv.textContent += `  -> KI konnte für "${item.name}" keine bessere Kategorie finden.\n`;
+            }
+
+        } catch (error) {
+            statusDiv.textContent += `  -> KI-Anfrage für "${item.name}" fehlgeschlagen: ${error}\n`;
+        }
+        await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    
+    statusDiv.textContent += "\n🎉 Aufräum-Prozess abgeschlossen!";
+    uploadButton.disabled = false;
+    fixMiscButton.disabled = false;
+});
