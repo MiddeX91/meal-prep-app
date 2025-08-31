@@ -33,19 +33,25 @@ exports.handler = async function(event, context) {
             }
         }
 
-        // --- Schritt 2: Edamam für die Nährwerte ---
-        const edamamUrl = `https://api.edamam.com/api/nutrition-data?app_id=${EDAMAM_APP_ID}&app_key=${EDAMAM_APP_KEY}&ingr=100g%20${encodeURIComponent(ingredientName)}`;
+// --- Schritt 2: Edamam für die Nährwerte ---
+        const edamamUrl = `https://api.edamam.com/api/nutrition-data?app_id=${process.env.EDAMAM_APP_ID}&app_key=${process.env.EDAMAM_APP_KEY}&ingr=100g%20${encodeURIComponent(ingredientName)}`;
         
         const edamamResponse = await fetch(edamamUrl);
         const edamamData = await edamamResponse.json();
         
+        console.log("Antwort von Edamam:", JSON.stringify(edamamData, null, 2)); // Wichtig für die Fehlersuche
+
         let nutritions = { kalorien: 0, protein: 0, fett: 0, kohlenhydrate: 0 };
-        if (edamamData.totalNutrients) {
-            nutritions.kalorien = Math.round(edamamData.totalNutrients.ENERC_KCAL?.quantity || 0);
-            nutritions.protein = Math.round(edamamData.totalNutrients.PROCNT?.quantity || 0);
-            nutritions.fett = Math.round(edamamData.totalNutrients.FAT?.quantity || 0);
-            nutritions.kohlenhydrate = Math.round(edamamData.totalNutrients.CHOCDF?.quantity || 0);
+        
+        // NEUE, ROBUSTERE LOGIK ZUM AUSLESEN DER DATEN
+        if (edamamData && edamamData.totalNutrients) {
+            const nutrients = edamamData.totalNutrients;
+            nutritions.kalorien = nutrients.ENERC_KCAL ? Math.round(nutrients.ENERC_KCAL.quantity) : 0;
+            nutritions.protein = nutrients.PROCNT ? Math.round(nutrients.PROCNT.quantity) : 0;
+            nutritions.fett = nutrients.FAT ? Math.round(nutrients.FAT.quantity) : 0;
+            nutritions.kohlenhydrate = nutrients.CHOCDF ? Math.round(nutrients.CHOCDF.quantity) : 0;
         }
+
 
 
         // === SCHRITT 3: KOMBINIERE DIE ERGEBNISSE & SENDE ANTWORT ===
