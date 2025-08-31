@@ -1,105 +1,4 @@
-
 [
-{
-  "title": "Protein Lasagne",
-  "category": "mahlzeit",
-  "haltbarkeit": 3,
-  "reift": false,
-  "basis_kalorien": 0,
-  "basis_makros": {
-    "protein": 0,
-    "carbs": 0,
-    "fat": 0
-  },
-  "ingredients": [
-    {
-      "name": "mageres Rinderhackfleisch",
-      "amount": 500,
-      "unit": "g",
-      "type": "protein"
-    },
-    {
-      "name": "Karotte",
-      "amount": 1,
-      "unit": "Stk",
-      "type": "basis"
-    },
-    {
-      "name": "Staudensellerie",
-      "amount": 1,
-      "unit": "Stk",
-      "type": "basis"
-    },
-    {
-      "name": "Zwiebel",
-      "amount": 0.5,
-      "unit": "Stk",
-      "type": "basis"
-    },
-    {
-      "name": "Tomatensauce",
-      "amount": 1,
-      "unit": "Dose",
-      "type": "basis"
-    },
-    {
-      "name": "Tomatenmark",
-      "amount": 1,
-      "unit": "EL",
-      "type": "basis"
-    },
-    {
-      "name": "Hüttenkäse",
-      "amount": 300,
-      "unit": "g",
-      "type": "protein"
-    },
-    {
-      "name": "Parmesan",
-      "amount": 30,
-      "unit": "g",
-      "type": "protein"
-    },
-    {
-      "name": "italienische Kräuter",
-      "amount": 1,
-      "unit": "TL",
-      "type": "basis"
-    },
-    {
-      "name": "Knoblauchpulver",
-      "amount": 1,
-      "unit": "TL",
-      "type": "basis"
-    },
-    {
-      "name": "Salz",
-      "amount": 1,
-      "unit": "TL",
-      "type": "basis"
-    },
-    {
-      "name": "schwarzer Pfeffer",
-      "amount": 0.5,
-      "unit": "TL",
-      "type": "basis"
-    },
-    {
-      "name": "Lasagneblätter",
-      "amount": 6,
-      "unit": "Stk",
-      "type": "energie_carb"
-    },
-    {
-      "name": "Mozzarella",
-      "amount": 70,
-      "unit": "g",
-      "type": "protein"
-    }
-  ],
-  "instructions": "Heizen Sie zuerst den Ofen auf 180 °C vor. Braten Sie das Hackfleisch in einer Pfanne an, bis es gar ist. Tropfen Sie die überschüssige Flüssigkeit ab und holen Sie das Hackfleisch aus der Pfanne. Stellen Sie es dann beiseite. In der Zwischenzeit geben Sie den Hüttenkäse, den Parmesan und die Hälfte der Gewürze (halber Teelöffel Knoblauchpulver, Salz und italienische Kräuter sowie eine Prise schwarzer Pfeffer) in eine kleine Schüssel. Nutzen Sie einen Zauberstab, um alles sorgfältig miteinander zu vermischen. Sprühen Sie die Pfanne mit kalorienarmem Backspray ein und geben Sie die Zwiebeln, Karotten und den Sellerie hinein. Braten Sie das Gemüse für 3-5 Minuten, bis es weich ist. Fügen Sie das Hackfleisch und den Rest der Gewürze hinzu. Anschließend kommt die Tomatensauce hinein. Wenn Sie gehackte Tomaten verwenden, sollten Sie diese mit einem Löffel noch zusätzlich zerkleinern. Kochen Sie alles für 5-10 Minuten, bis die Sauce eingedickt ist und die Zutaten genügend Zeit gehabt haben, um das Aroma aufzusaugen. Jetzt wird die Lasagne zusammengestellt! Geben Sie 1/3 der Hack-Mischung als Basis in eine ofenfeste Auflaufform und legen Sie 2 Lasagneblätter oben drauf. Dann kommt die nächste Schicht vom Fleisch-Mix, zusammen mit der Hälfte der Käse-Sauce, dazu. Schließlich legen Sie 2 weitere Lasagneblätter drauf und wiederholen das ganze Prozedere mit der restlichen Fleisch-Mischung und Sauce. Garnieren Sie die Lasagne zum Schluss mit etwas geriebenem Mozzarella und decken Sie die Lasagne mit Alufolie ab. Backen Sie sie anschließend für 25-30 Minuten im Ofen (und entfernen Sie die Folie für die letzten 5 Minuten). Sobald die Lasagne fertig ist, können Sie sie noch für 5 Minuten abkühlen lassen."
-},
-
 {
   "title": "Mageres Puten-Geschnetzeltes mit Quinoa-Gemüse-Mix (500 kcal Portion)",
   "category": "mahlzeit",
@@ -119,7 +18,7 @@
       "type": "protein"
     },
     {
-      "name": "Quinoa (ungekocht)",
+      "name": "Quinoa",
       "amount": 60,
       "unit": "g",
       "type": "energie_carb"
@@ -161,19 +60,25 @@
       "type": "basis"
     },
     {
-      "name": "Sojasoße, salzarm",
+      "name": "Sojasoße",
       "amount": 1,
       "unit": "EL",
       "type": "basis"
     },
     {
-      "name": "Paprikapulver, edelsüß",
+      "name": "Paprikapulver",
       "amount": 0.5,
       "unit": "TL",
       "type": "basis"
     },
     {
-      "name": "Salz und Pfeffer",
+      "name": "Salz",
+      "amount": 1,
+      "unit": "Prise",
+      "type": "basis"
+    },
+    {
+      "name": "Pfeffer",
       "amount": 1,
       "unit": "Prise",
       "type": "basis"
@@ -181,7 +86,6 @@
   ],
   "instructions": "Quinoa nach Packungsanweisung in der doppelten Menge Wasser oder Gemüsebrühe kochen und quellen lassen. In der Zwischenzeit die Putenbrust in mundgerechte Streifen schneiden. Zwiebel und Knoblauch fein hacken. Paprika in Streifen und Brokkoli in kleine Röschen teilen. Olivenöl in einer großen Pfanne erhitzen und die Zwiebel glasig dünsten, dann den Knoblauch kurz mitbraten. Das Putenfleisch hinzugeben und von allen Seiten scharf anbraten, bis es gar ist. Mit Salz, Pfeffer und Paprikapulver würzen und aus der Pfanne nehmen. Nun Paprika und Brokkoli in die Pfanne geben und für 5-7 Minuten anbraten, bis das Gemüse bissfest ist. Mit der Gemüsebrühe und Sojasoße ablöschen und kurz einköcheln lassen. Das Putenfleisch wieder in die Pfanne geben und alles gut vermischen. Den gekochten Quinoa unter das Gemüse-Puten-Geschnetzelte heben oder separat als Beilage servieren. Abschließend nochmals mit Salz und Pfeffer abschmecken."
 },
-
 
 {
   "title": "Mediterraner Kichererbsen-Nudelsalat",
@@ -196,13 +100,13 @@
   },
   "ingredients": [
     {
-      "name": "Vollkorn-Penne (ungekocht)",
+      "name": "Vollkorn-Penne",
       "amount": 70,
       "unit": "g",
       "type": "energie_carb"
     },
     {
-      "name": "Kichererbsen (gekocht)",
+      "name": "Kichererbsen",
       "amount": 100,
       "unit": "g",
       "type": "protein"
@@ -244,13 +148,19 @@
       "type": "basis"
     },
     {
-      "name": "Frische Petersilie",
+      "name": "Petersilie",
       "amount": 1,
       "unit": "Handvoll",
       "type": "basis"
     },
     {
-      "name": "Salz und Pfeffer",
+      "name": "Salz",
+      "amount": 1,
+      "unit": "Prise",
+      "type": "basis"
+    },
+    {
+      "name": "Pfeffer",
       "amount": 1,
       "unit": "Prise",
       "type": "basis"
@@ -272,19 +182,19 @@
   },
   "ingredients": [
     {
-      "name": "Thunfisch im eigenen Saft (Abtropfgewicht)",
+      "name": "Thunfisch im eigenen Saft",
       "amount": 150,
       "unit": "g",
       "type": "protein"
     },
     {
-      "name": "Mais (Dose)",
+      "name": "Mais",
       "amount": 100,
       "unit": "g",
       "type": "energie_carb"
     },
     {
-      "name": "Kidneybohnen (Dose)",
+      "name": "Kidneybohnen",
       "amount": 100,
       "unit": "g",
       "type": "energie_carb"
@@ -314,13 +224,19 @@
       "type": "basis"
     },
     {
-      "name": "Frischer Dill",
+      "name": "Dill",
       "amount": 1,
       "unit": "EL",
       "type": "basis"
     },
     {
-      "name": "Salz und Pfeffer",
+      "name": "Salz",
+      "amount": 1,
+      "unit": "Prise",
+      "type": "basis"
+    },
+    {
+      "name": "Pfeffer",
       "amount": 1,
       "unit": "Prise",
       "type": "basis"
@@ -328,7 +244,6 @@
   ],
   "instructions": "Den Thunfisch abtropfen lassen. Mais und Kidneybohnen in ein Sieb geben, mit Wasser abspülen und gut abtropfen lassen. Die rote Zwiebel fein hacken. Für das Dressing den Skyr mit Apfelessig und Senf glatt rühren, den gehackten Dill unterrühren und mit Salz und Pfeffer kräftig abschmecken. Thunfisch, Mais, Kidneybohnen und Zwiebel in einer Schüssel vermischen. Das Dressing dazugeben und alles gut vermengen. Der Salat schmeckt am besten, wenn er kurz durchziehen kann."
 },
-
 
 {
   "title": "Linsen-Hähnchen-Curry",
@@ -343,19 +258,19 @@
   },
   "ingredients": [
     {
-      "name": "Hähnchenbrustfilet",
+      "name": "Hähnchenbrust",
       "amount": 150,
       "unit": "g",
       "type": "protein"
     },
     {
-      "name": "Rote Linsen (ungekocht)",
+      "name": "Rote Linsen",
       "amount": 70,
       "unit": "g",
       "type": "energie_carb"
     },
     {
-      "name": "Gehackte Tomaten (Dose)",
+      "name": "Gehackte Tomaten",
       "amount": 200,
       "unit": "g",
       "type": "basis"
@@ -373,7 +288,7 @@
       "type": "basis"
     },
     {
-      "name": "Ingwer (frisch)",
+      "name": "Ingwer",
       "amount": 1,
       "unit": "cm",
       "type": "basis"
@@ -397,7 +312,13 @@
       "type": "basis"
     },
     {
-      "name": "Salz und Pfeffer",
+      "name": "Salz",
+      "amount": 1,
+      "unit": "Prise",
+      "type": "basis"
+    },
+    {
+      "name": "Pfeffer",
       "amount": 1,
       "unit": "Prise",
       "type": "basis"
@@ -419,7 +340,7 @@
   },
   "ingredients": [
     {
-      "name": "Hähnchenbrust (gekocht und gewürfelt)",
+      "name": "Hähnchenbrust",
       "amount": 200,
       "unit": "g",
       "type": "protein"
@@ -461,19 +382,25 @@
       "type": "basis"
     },
     {
-      "name": "Frische Petersilie (gehackt)",
+      "name": "Petersilie",
       "amount": 1,
       "unit": "EL",
       "type": "basis"
     },
     {
-      "name": "Salz und Pfeffer",
+      "name": "Salz",
+      "amount": 1,
+      "unit": "Prise",
+      "type": "basis"
+    },
+    {
+      "name": "Pfeffer",
       "amount": 1,
       "unit": "Prise",
       "type": "basis"
     }
   ],
-  "instructions": "Die gekochte und abgekühlte Hähnchenbrust in kleine Würfel schneiden. Sellerie und rote Zwiebel fein hacken. Die Walnüsse grob hacken. In einer Schüssel den griechischen Joghurt mit Zitronensaft und Dijon-Senf verrühren. Hähnchen, Sellerie, Zwiebel und Walnüsse dazugeben. Alles gut vermischen und mit Salz, Pfeffer und frischer Petersilie abschmecken. Der Salat schmeckt am besten, wenn er etwas durchgezogen ist."
+  "instructions": "Für dieses Rezept wird bereits gekochte Hähnchenbrust benötigt. Die abgekühlte Hähnchenbrust in kleine Würfel schneiden. Sellerie und rote Zwiebel fein hacken. Die Walnüsse grob hacken. In einer Schüssel den griechischen Joghurt mit Zitronensaft und Dijon-Senf verrühren. Hähnchen, Sellerie, Zwiebel und Walnüsse dazugeben. Alles gut vermischen und mit Salz, Pfeffer und frischer Petersilie abschmecken. Der Salat schmeckt am besten, wenn er etwas durchgezogen ist."
 },
 
 {
@@ -489,19 +416,19 @@
   },
   "ingredients": [
     {
-      "name": "Kichererbsen- oder Linsennudeln (ungekocht)",
+      "name": "Linsennudeln",
       "amount": 80,
       "unit": "g",
       "type": "energie_carb"
     },
     {
-      "name": "Braune oder grüne Linsen (ungekocht)",
+      "name": "Linsen (braun)",
       "amount": 50,
       "unit": "g",
       "type": "protein"
     },
     {
-      "name": "Gehackte Tomaten (Dose)",
+      "name": "Gehackte Tomaten",
       "amount": 200,
       "unit": "g",
       "type": "basis"
@@ -531,19 +458,25 @@
       "type": "basis"
     },
     {
-      "name": "Italienische Kräuter (getrocknet)",
+      "name": "Italienische Kräuter",
       "amount": 1,
       "unit": "TL",
       "type": "basis"
     },
     {
-      "name": "Salz und Pfeffer",
+      "name": "Salz",
+      "amount": 1,
+      "unit": "Prise",
+      "type": "basis"
+    },
+    {
+      "name": "Pfeffer",
       "amount": 1,
       "unit": "Prise",
       "type": "basis"
     }
   ],
-  "instructions": "Die Linsen nach Packungsanweisung kochen. Die Protein-Pasta nach Packungsanweisung kochen. Karotte, Sellerie und Zwiebel in kleine Würfel schneiden. In einer Pfanne etwas Öl erhitzen und das Gemüse anbraten, bis es weich ist. Das Tomatenmark hinzufügen und kurz mitrösten. Die gehackten Tomaten und die gekochten Linsen dazugeben. Mit italienischen Kräutern, Salz und Pfeffer würzen und die Sauce bei niedriger Hitze etwa 10-15 Minuten köcheln lassen. Die gekochte Pasta mit der Linsen-Bolognese servieren."
+  "instructions": "Die Linsen nach Packungsanweisung kochen. Die Linsennudeln nach Packungsanweisung kochen. Karotte, Sellerie und Zwiebel in kleine Würfel schneiden. In einer Pfanne etwas Öl erhitzen und das Gemüse anbraten, bis es weich ist. Das Tomatenmark hinzufügen und kurz mitrösten. Die gehackten Tomaten und die gekochten Linsen dazugeben. Mit italienischen Kräutern, Salz und Pfeffer würzen und die Sauce bei niedriger Hitze etwa 10-15 Minuten köcheln lassen. Die gekochte Pasta mit der Linsen-Bolognese servieren."
 },
 
 {
@@ -559,13 +492,13 @@
   },
   "ingredients": [
     {
-      "name": "Haferflocken, zart",
+      "name": "Haferflocken",
       "amount": 50,
       "unit": "g",
       "type": "energie_carb"
     },
     {
-      "name": "Proteinpulver (z.B. Vanille)",
+      "name": "Proteinpulver (Vanille)",
       "amount": 30,
       "unit": "g",
       "type": "protein"
@@ -583,13 +516,13 @@
       "type": "protein"
     },
     {
-      "name": "Fettarme Milch (1,5%)",
+      "name": "Milch (fettarm)",
       "amount": 120,
       "unit": "ml",
       "type": "protein"
     },
     {
-      "name": "Beerenmischung (TK)",
+      "name": "Beerenmischung",
       "amount": 75,
       "unit": "g",
       "type": "energie_carb"
@@ -617,13 +550,13 @@
       "type": "protein"
     },
     {
-      "name": "Hüttenkäse, fettarm",
+      "name": "Hüttenkäse",
       "amount": 150,
       "unit": "g",
       "type": "protein"
     },
     {
-      "name": "Feta, light",
+      "name": "Feta-Käse",
       "amount": 100,
       "unit": "g",
       "type": "protein"
@@ -641,13 +574,25 @@
       "type": "basis"
     },
     {
-      "name": "Spinat, frisch",
+      "name": "Spinat",
       "amount": 100,
       "unit": "g",
       "type": "basis"
     },
     {
-      "name": "Salz, Pfeffer, Paprikapulver",
+      "name": "Salz",
+      "amount": 1,
+      "unit": "Prise",
+      "type": "basis"
+    },
+    {
+      "name": "Pfeffer",
+      "amount": 1,
+      "unit": "Prise",
+      "type": "basis"
+    },
+    {
+      "name": "Paprikapulver",
       "amount": 1,
       "unit": "Prise",
       "type": "basis"
@@ -675,7 +620,7 @@
       "type": "protein"
     },
     {
-      "name": "Beerenmischung (TK oder frisch)",
+      "name": "Beerenmischung",
       "amount": 100,
       "unit": "g",
       "type": "energie_carb"
@@ -687,19 +632,19 @@
       "type": "energie_fat"
     },
     {
-      "name": "Leinsamen, geschrotet",
+      "name": "Leinsamen (geschrotet)",
       "amount": 10,
       "unit": "g",
       "type": "energie_fat"
     },
     {
-      "name": "Wasser oder Milch",
+      "name": "Wasser",
       "amount": 2,
       "unit": "EL",
       "type": "basis"
     }
   ],
-  "instructions": "Den Magerquark in eine Schüssel geben und mit einem Schuss Wasser oder Milch cremig rühren. Die Beeren, Mandeln und geschroteten Leinsamen als Topping darauf verteilen. Für Meal Prep kann der Quark in einem Behälter vorbereitet werden und die Nüsse/Samen in einem separaten kleinen Beutel oder Behälter aufbewahrt werden, damit sie knackig bleiben. Vor dem Essen einfach alles zusammenfügen."
+  "instructions": "Den Magerquark in eine Schüssel geben und mit einem Schuss Wasser cremig rühren. Die Beeren, Mandeln und geschroteten Leinsamen als Topping darauf verteilen. Für Meal Prep kann der Quark in einem Behälter vorbereitet werden und die Nüsse/Samen in einem separaten kleinen Beutel oder Behälter aufbewahrt werden, damit sie knackig bleiben. Vor dem Essen einfach alles zusammenfügen."
 }
 
 ]

@@ -48,11 +48,14 @@ uploadButton.addEventListener('click', async () => {
 
     const ingredientsToCategorize = [];
     recipesToUpload.forEach(item => {
-        const key = item.name.toLowerCase().replace(/\//g, '-');
-        if (!existingLexikon[key]) {
-            ingredientsToCategorize.push(item);
-        } else {
-            statusDiv.textContent += `- Zutat "${item.name}" ist bereits bekannt.\n`;
+        // NEUE SICHERHEITSPRÜFUNG: Ignoriere leere oder fehlerhafte Einträge
+        if (item && item.name) {
+            const key = item.name.toLowerCase().replace(/\//g, '-');
+            if (!existingLexikon[key]) {
+                ingredientsToCategorize.push(item);
+            } else {
+                statusDiv.textContent += `- Zutat "${item.name}" ist bereits bekannt.\n`;
+            }
         }
     });
     
