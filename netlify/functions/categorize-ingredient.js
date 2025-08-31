@@ -3,6 +3,8 @@ const fetch = require('node-fetch');
 exports.handler = async function(event, context) {
     const { ingredientName } = JSON.parse(event.body);
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+    const EDAMAM_APP_ID = process.env.EDAMAM_APP_ID;
+    const EDAMAM_APP_KEY = process.env.EDAMAM_APP_KEY;
 
     if (!GEMINI_API_KEY) {
         return { statusCode: 500, body: JSON.stringify({ error: 'GEMINI_API_KEY nicht gefunden.' }) };
@@ -31,26 +33,20 @@ exports.handler = async function(event, context) {
             }
         }
 
-        // === SCHRITT 2: OPENFOODFACTS (mit verbessertem Logging) ===
-        const offUrl = `https://world.openfoodfacts.org/api/v2/search?search_terms=${encodeURIComponent(ingredientName)}&fields=product_name,nutriments&page_size=1&json=true`;
+        // --- Schritt 2: Edamam für die Nährwerte ---
+        const edamamUrl = `https://api.edamam.com/api/nutrition-data?app_id=${EDAMAM_APP_ID}&app_key=${EDAMAM_APP_KEY}&ingr=100g%20${encodeURIComponent(ingredientName)}`;
         
-        console.log("Frage OpenFoodFacts an unter:", offUrl); // NEUES LOG
-        
-        const offResponse = await fetch(offUrl);
-        const offData = await offResponse.json();
-
-        console.log("Antwort von OpenFoodFacts:", JSON.stringify(offData, null, 2)); // NEUES LOG
+        const edamamResponse = await fetch(edamamUrl);
+        const edamamData = await edamamResponse.json();
         
         let nutritions = { kalorien: 0, protein: 0, fett: 0, kohlenhydrate: 0 };
-        if (offData.products && offData.products.length > 0 && offData.products[0].nutriments) {
-            const nutriments = offData.products[0].nutriments;
-            nutritions.kalorien = nutriments['energy-kcal_100g'] || 0;
-            nutritions.protein = nutriments.proteins_100g || 0;
-            nutritions.fett = nutriments.fat_100g || 0;
-            nutritions.kohlenhydrate = nutriments.carbohydrates_100g || 0;
-        } else {
-            console.warn(`Keine Nährwerte für "${ingredientName}" bei OpenFoodFacts gefunden.`); // NEUES LOG
+        if (edamamData.totalNutrients) {
+            nutritions.kalorien = Math.round(edamamData.totalNutrients.ENERC_KCAL?.quantity || 0);
+            nutritions.protein = Math.round(edamamData.totalNutrients.PROCNT?.quantity || 0);
+            nutritions.fett = Math.round(edamamData.totalNutrients.FAT?.quantity || 0);
+            nutritions.kohlenhydrate = Math.round(edamamData.totalNutrients.CHOCDF?.quantity || 0);
         }
+
 
         // === SCHRITT 3: KOMBINIERE DIE ERGEBNISSE & SENDE ANTWORT ===
         const finalLexikonEntry = {
