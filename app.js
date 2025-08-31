@@ -2,12 +2,13 @@
 import { openSmartFillWizard } from './smart-fill-assistant.js';
 import { capitalize } from './utils.js';
 
-// === GLOBALE VARIABLEN ===
+// === GLOBALE VARIABLEN === Test
 let weeklyPlan = {}, recipeData = [], userProfile = {}, activeSlot = { day: null, category: null };
 let favoriteRecipeIds = [];
 let cookingContainer;
 let planTemplates = [];
 let templateModal, templateModalTitle, templateModalBody, templateModalActions;
+
 
 
 const defaultProfile = {
