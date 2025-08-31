@@ -25,51 +25,6 @@ exports.handler = async function(event, context) {
 
 
 
-async function getNutrition(ingredientName) {
-
-    // --- Schritt 2: Edamam für die Nährwerte ---
-    const ingredientQuery = `100g ${ingredientEnglish}`;
-    const edamamUrl = `https://api.edamam.com/api/nutrition-data?app_id=${EDAMAM_APP_ID}&app_key=${EDAMAM_APP_KEY}&ingr=${encodeURIComponent(ingredientQuery)}`;
-
-    try {
-        const edamamResponse = await fetch(edamamUrl);
-
-        if (!edamamResponse.ok) {
-            console.error("Fehler bei Edamam Request:", edamamResponse.status, edamamResponse.statusText);
-            return null;
-        }
-
-        const edamamData = await edamamResponse.json();
-        console.log("Antwort von Edamam:", edamamData);
-
-        let nutritions = null;
-        if (edamamData && edamamData.totalNutrients && edamamData.totalNutrients.ENERC_KCAL) {
-            const nutrients = edamamData.totalNutrients;
-            nutritions = {
-                kalorien: Math.round(nutrients.ENERC_KCAL.quantity),
-                protein: Math.round(nutrients.PROCNT?.quantity || 0),
-                fett: Math.round(nutrients.FAT?.quantity || 0),
-                kohlenhydrate: Math.round(nutrients.CHOCDF?.quantity || 0)
-            };
-        }
-
-        return nutritions;
-
-    } catch (err) {
-        console.error("Fehler beim Abruf von Edamam:", err);
-        return null;
-    }
-}
-
-// --- Beispielaufruf ---
-(async () => {
-    const result = await getNutrition("Kartoffel");
-    console.log("Nährwerte:", result);
-})();
-
-
-
-
 
         // --- Schritt 2: Edamam für die Nährwerte ---
         const ingredientQuery = `100g ${ingredientName}`;

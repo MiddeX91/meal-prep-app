@@ -53,7 +53,7 @@ async function getNutrition(ingredientName) {
             };
         }
 
-        return nutritions;
+        return { statusCode: 200, body: JSON.stringify({ category: foundCategory, fullData: finalLexikonEntry }) };
 
     } catch (err) {
         console.error("Fehler beim Abruf von Edamam:", err);
