@@ -28,7 +28,7 @@ exports.handler = async function(event, context) {
 async function getNutrition(ingredientName) {
 
     // --- Schritt 2: Edamam für die Nährwerte ---
-    const ingredientQuery = `100g ${ingredientEnglish}`;
+    const ingredientQuery = `100g ${ingredientName}`;
     const edamamUrl = `https://api.edamam.com/api/nutrition-data?app_id=${EDAMAM_APP_ID}&app_key=${EDAMAM_APP_KEY}&ingr=${encodeURIComponent(ingredientQuery)}`;
 
     try {
