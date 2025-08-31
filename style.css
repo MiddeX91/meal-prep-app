@@ -400,3 +400,16 @@ input:checked + .slider:before { transform: translateX(26px); }
 .template-item .delete-template-btn:hover {
     opacity: 1;
 }
+
+.list-category-header {
+    background-color: var(--background-color);
+    color: var(--primary-color);
+    font-weight: bold;
+    padding: 0.5rem 1rem;
+    margin-top: 1.5rem;
+    border-radius: 4px;
+    font-size: 1.1rem;
+}
+.list-category-header:first-child {
+    margin-top: 0;
+}

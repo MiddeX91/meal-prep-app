@@ -8,7 +8,7 @@ let favoriteRecipeIds = [];
 let cookingContainer;
 let planTemplates = [];
 let templateModal, templateModalTitle, templateModalBody, templateModalActions;
-
+let zutatenLexikon = {};
 
 
 const defaultProfile = {
@@ -59,6 +59,7 @@ templateModalActions = document.getElementById('template-modal-actions');
     
     // Warte, bis die Rezepte aus der Cloud geladen sind
     await loadRecipesFromFirestore(); 
+    await loadZutatenLexikon();
     
     // Lade den Rest der lokalen Daten
     loadDataFromLocalStorage();
@@ -455,17 +456,43 @@ function renderShoppingList() {
     const container = document.getElementById('shopping-list-container');
     if (!container) return;
 
-    if (list && list.length > 0) {
-        let listHTML = '';
-        list.forEach(item => {
-            if (item && item.name) {
-                listHTML += `<li><input type="checkbox"> ${item.amount || ''} ${item.unit || ''} ${item.name}</li>`;
-            }
-        });
-        container.innerHTML = listHTML;
-    } else {
+    if (!list || list.length === 0) {
         container.innerHTML = '<li>Plane Mahlzeiten, um deine Einkaufsliste zu füllen.</li>';
+        return;
     }
+
+    // NEU: Gruppiere die Liste nach Kategorie
+    const groupedList = {};
+    list.forEach(item => {
+        const key = item.name.toLowerCase();
+        const category = zutatenLexikon[key] || 'Sonstiges'; // Fallback auf "Sonstiges"
+        
+        if (!groupedList[category]) {
+            groupedList[category] = [];
+        }
+        groupedList[category].push(item);
+    });
+
+    // NEU: Baue das HTML mit den Gruppen-Überschriften
+    let listHTML = '';
+    const categoryOrder = ['Gemüse & Obst', 'Fleisch & Fisch', 'Milchprodukte', 'Trockenwaren', 'Backzutaten', 'Gewürze & Öle'];
+    
+    // Sortiere die Kategorien nach unserer Reihenfolge und füge "Sonstiges" am Ende hinzu
+    const sortedCategories = Object.keys(groupedList).sort((a, b) => {
+        const indexA = categoryOrder.indexOf(a);
+        const indexB = categoryOrder.indexOf(b);
+        if (a === 'Sonstiges') return 1;
+        if (b === 'Sonstiges') return -1;
+        return indexA - indexB;
+    });
+
+    for (const category of sortedCategories) {
+        listHTML += `<li class="list-category-header">${category}</li>`;
+        groupedList[category].forEach(item => {
+            listHTML += `<li><input type="checkbox"> ${item.amount || ''} ${item.unit || ''} ${item.name}</li>`;
+        });
+    }
+    container.innerHTML = listHTML;
 }
 
 function generateShoppingList() {
@@ -729,5 +756,18 @@ function handleTemplateModalClick(event) {
             // Lade die Ansicht im Modal neu
             openLoadTemplateModal();
         }
+    }
+}
+
+async function loadZutatenLexikon() {
+    try {
+        const snapshot = await db.collection('zutatenLexikon').get();
+        snapshot.forEach(doc => {
+            // Speichere die Kategorie unter dem kleingeschriebenen Namen
+            zutatenLexikon[doc.id] = doc.data().kategorie;
+        });
+        console.log(`✅ Lexikon mit ${Object.keys(zutatenLexikon).length} Einträgen geladen.`);
+    } catch (error) {
+        console.error("❌ Fehler beim Laden des Zutaten-Lexikons:", error);
     }
 }
