@@ -31,11 +31,15 @@ exports.handler = async function(event, context) {
             }
         }
 
-        // === SCHRITT 2: FRAGE OPENFOODFACTS NACH NÄHRWERTEN ===
+        // === SCHRITT 2: OPENFOODFACTS (mit verbessertem Logging) ===
         const offUrl = `https://world.openfoodfacts.org/api/v2/search?search_terms=${encodeURIComponent(ingredientName)}&fields=product_name,nutriments&page_size=1&json=true`;
+        
+        console.log("Frage OpenFoodFacts an unter:", offUrl); // NEUES LOG
         
         const offResponse = await fetch(offUrl);
         const offData = await offResponse.json();
+
+        console.log("Antwort von OpenFoodFacts:", JSON.stringify(offData, null, 2)); // NEUES LOG
         
         let nutritions = { kalorien: 0, protein: 0, fett: 0, kohlenhydrate: 0 };
         if (offData.products && offData.products.length > 0 && offData.products[0].nutriments) {
@@ -44,6 +48,8 @@ exports.handler = async function(event, context) {
             nutritions.protein = nutriments.proteins_100g || 0;
             nutritions.fett = nutriments.fat_100g || 0;
             nutritions.kohlenhydrate = nutriments.carbohydrates_100g || 0;
+        } else {
+            console.warn(`Keine Nährwerte für "${ingredientName}" bei OpenFoodFacts gefunden.`); // NEUES LOG
         }
 
         // === SCHRITT 3: KOMBINIERE DIE ERGEBNISSE & SENDE ANTWORT ===
