@@ -95,6 +95,15 @@ function assignEventListeners() {
     templateModal.querySelector('.modal-cancel-btn').addEventListener('click', closeTemplateModal);
     templateModalBody.addEventListener('click', handleTemplateModalClick);
 
+    const resetShoppingListBtn = document.getElementById('reset-shopping-list-btn');
+if (resetShoppingListBtn) {
+    resetShoppingListBtn.addEventListener('click', () => {
+        if (confirm("Möchtest du wirklich alle Haken von der Einkaufsliste entfernen?")) {
+            resetShoppingList();
+        }
+    });
+}
+
 
 const smartFillButton = document.getElementById('smart-fill-btn');
 if (smartFillButton) {
@@ -387,6 +396,7 @@ function clearWeeklyPlan() {
         saveDataToLocalStorage();
         renderPlanner();
         showToast("Wochenplan wurde gelöscht.");
+        askToResetShoppingList("Dein Wochenplan wurde geleert."); // NEU
     }
 }
 
@@ -401,7 +411,7 @@ function applyDarkMode(isDark) {
     darkModeToggle.checked = isDark;
 }
 
-function showToast(message) {
+export function showToast(message) {
     toast.textContent = message;
     toast.classList.add('show');
     setTimeout(() => { toast.classList.remove('show'); }, 3000);
@@ -795,5 +805,21 @@ function handleShoppingListClick(event) {
         shoppingListState[itemName] = event.target.checked;
         saveDataToLocalStorage();
         renderShoppingList(); // Zeichne die Liste neu, um das Element zu verschieben
+    }
+}
+
+function resetShoppingList() {
+    shoppingListState = {};
+    saveDataToLocalStorage();
+    renderShoppingList(); // Zeichne die Liste neu, um die Änderungen anzuzeigen
+    showToast("Einkaufsliste wurde zurückgesetzt.");
+}
+
+export function askToResetShoppingList(reason) {
+    // Frage nur, wenn überhaupt etwas abgehakt ist
+    if (Object.keys(shoppingListState).length > 0) { 
+        if (confirm(`${reason}\n\nMöchtest du auch deine Einkaufsliste zurücksetzen?`)) {
+            resetShoppingList();
+        }
     }
 }

@@ -430,3 +430,7 @@ input:checked + .slider:before { transform: translateX(26px); }
     text-decoration: line-through;
     opacity: 0.6;
 }
+
+#reset-shopping-list-btn {
+    margin-bottom: 1.5rem;
+}

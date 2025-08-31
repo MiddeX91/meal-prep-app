@@ -1,4 +1,6 @@
 import { capitalize } from './utils.js';
+import { showToast } from '../app.js';
+import { askToResetShoppingList } from '../app.js';
 
 // === DOM-ELEMENTE FÜR DEN ASSISTENTEN ===
 const smartFillModal = document.getElementById('smart-fill-modal');
@@ -10,6 +12,7 @@ const cancelButtons = smartFillModal.querySelectorAll('.modal-cancel-btn');
 const proposeButton = document.getElementById('propose-recipes-btn');
 const fillPlanButton = document.getElementById('fill-plan-btn');
 const proposalContainer = document.getElementById('proposal-container');
+
 
 // === ZUSTAND (STATE) DES ASSISTENTEN ===
 let currentProposal = { mahlzeit: [], frühstück: [], snack: [] };
@@ -167,9 +170,13 @@ function distributeRecipes() {
         });
     }
 
-    document.dispatchEvent(new CustomEvent('planUpdated', { detail: newPlan }));
+document.dispatchEvent(new CustomEvent('planUpdated', { detail: newPlan }));
     closeSmartFillWizard();
     showToast("Wochenplan wurde intelligent gefüllt.");
+    askToResetShoppingList("Dein Wochenplan wurde durch den Assistenten aktualisiert."); // NEU
+
+
+
 }
 
 /**
