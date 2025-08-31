@@ -1,4 +1,6 @@
 const fetch = require('node-fetch');
+const categories = ['Gemüse & Obst', 'Milchprodukte', 'Fleisch & Fisch', 'Trockenwaren', 'Backzutaten', 'Gewürze & Öle', 'Getränke', 'Sonstiges'];
+
 
 exports.handler = async function(event, context) {
     const { ingredientName } = JSON.parse(event.body);
@@ -11,8 +13,13 @@ exports.handler = async function(event, context) {
     // NEUE, KORREKTE URL ZUM AKTUELLEN MODELL
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
-    const prompt = `In welche dieser Supermarkt-Kategorien passt '${ingredientName}' am besten? Antworte NUR mit dem exakten Kategorienamen. Kategorien: [Gemüse & Obst, Milchprodukte, Fleisch & Fisch, Trockenwaren, Backzutaten, Gewürze & Öle, Sonstiges]`;
-    
+const prompt = `Du bist ein Experte für Lebensmitteleinzelhandel. Ordne die folgende Zutat einer der vorgegebenen Supermarkt-Kategorien zu. Antworte ausschließlich mit dem exakten Namen der passendsten Kategorie aus der Liste.
+
+Zutat: "${ingredientName}"
+
+Kategorien: [${categories.join(', ')}]`;
+
+
     const requestBody = {
         contents: [{ parts: [{ text: prompt }] }]
     };

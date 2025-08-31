@@ -475,7 +475,7 @@ function renderShoppingList() {
 
     // NEU: Baue das HTML mit den Gruppen-Überschriften
     let listHTML = '';
-    const categoryOrder = ['Gemüse & Obst', 'Fleisch & Fisch', 'Milchprodukte', 'Trockenwaren', 'Backzutaten', 'Gewürze & Öle'];
+const categoryOrder = ['Gemüse & Obst', 'Fleisch & Fisch', 'Milchprodukte', 'Trockenwaren', 'Backzutaten', 'Gewürze & Öle', 'Getränke', 'Sonstiges'];
     
     // Sortiere die Kategorien nach unserer Reihenfolge und füge "Sonstiges" am Ende hinzu
     const sortedCategories = Object.keys(groupedList).sort((a, b) => {
