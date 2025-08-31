@@ -1,5 +1,4 @@
 const fetch = require('node-fetch');
-let nutritions = null;
 
 exports.handler = async function(event, context) {
     const { ingredientName } = JSON.parse(event.body);
@@ -26,42 +25,24 @@ exports.handler = async function(event, context) {
 
 
 
-async function getNutrition(ingredientName) {
 
-    // --- Schritt 2: Edamam für die Nährwerte ---
-    const ingredientQuery = `100g ${ingredientName}`;
-    const edamamUrl = `https://api.edamam.com/api/nutrition-data?app_id=${EDAMAM_APP_ID}&app_key=${EDAMAM_APP_KEY}&ingr=${encodeURIComponent(ingredientQuery)}`;
-
-    try {
+        // --- Schritt 2: Edamam für die Nährwerte ---
+        const ingredientQuery = `100g ${ingredientName}`;
+        const edamamUrl = `https://api.edamam.com/api/nutrition-data?app_id=${EDAMAM_APP_ID}&app_key=${EDAMAM_APP_KEY}&ingr=${encodeURIComponent(ingredientQuery)}`;
+        
         const edamamResponse = await fetch(edamamUrl);
-
-        if (!edamamResponse.ok) {
-            console.error("Fehler bei Edamam Request:", edamamResponse.status, edamamResponse.statusText);
-            return null;
-        }
-
         const edamamData = await edamamResponse.json();
-        console.log("Antwort von Edamam:", edamamData);
-
+        
         let nutritions = null;
         if (edamamData && edamamData.totalNutrients && edamamData.totalNutrients.ENERC_KCAL) {
             const nutrients = edamamData.totalNutrients;
             nutritions = {
                 kalorien: Math.round(nutrients.ENERC_KCAL.quantity),
-                protein: Math.round(nutrients.PROCNT?.quantity || 0),
-                fett: Math.round(nutrients.FAT?.quantity || 0),
-                kohlenhydrate: Math.round(nutrients.CHOCDF?.quantity || 0)
+                protein: Math.round(nutrients.PROCNT.quantity),
+                fett: Math.round(nutrients.FAT.quantity),
+                kohlenhydrate: Math.round(nutrients.CHOCDF.quantity)
             };
         }
-
-        return { statusCode: 200, body: JSON.stringify({ category: foundCategory, fullData: finalLexikonEntry }) };
-
-    } catch (err) {
-        console.error("Fehler beim Abruf von Edamam:", err);
-        return null;
-    }
-}
-
 
         // --- Schritt 3: Ergebnisse kombinieren ---
         const finalLexikonEntry = {
