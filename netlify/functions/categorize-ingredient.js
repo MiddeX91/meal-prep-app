@@ -1,4 +1,5 @@
 const fetch = require('node-fetch');
+let nutritions = null;
 
 exports.handler = async function(event, context) {
     const { ingredientName } = JSON.parse(event.body);
