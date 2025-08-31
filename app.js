@@ -9,6 +9,7 @@ let cookingContainer;
 let planTemplates = [];
 let templateModal, templateModalTitle, templateModalBody, templateModalActions;
 let zutatenLexikon = {};
+let shoppingListState = {};
 
 
 const defaultProfile = {
@@ -81,6 +82,7 @@ function assignEventListeners() {
     darkModeToggle.addEventListener('change', toggleDarkMode);
     clearPlanBtn.addEventListener('click', clearWeeklyPlan);
     userProfileContainer.addEventListener('click', handleProfileEdit);
+    shoppingListContainer.addEventListener('click', handleShoppingListClick);
 
     // Alte Listener für prompt() entfernen, neue zuweisen
     const savePlanBtn = document.getElementById('save-plan-btn');
@@ -106,6 +108,8 @@ document.addEventListener('planUpdated', (event) => {
     renderPlanner();
     saveDataToLocalStorage();
 });
+
+
 
 }
 
@@ -451,7 +455,6 @@ function createProgressBarsHTML(totals, profile) {
 
 // === EINKAUFSLISTEN-LOGIK ===
 
-// in app.js
 function renderShoppingList() {
     const list = generateShoppingList();
     const container = document.getElementById('shopping-list-container');
@@ -464,32 +467,45 @@ function renderShoppingList() {
 
     const groupedList = {};
     list.forEach(item => {
-        // Stelle sicher, dass der Schlüssel immer kleingeschrieben und ohne Sonderzeichen ist
         const key = item.name.toLowerCase().replace(/\//g, '-');
-        // Hol die Kategorie und setze sie auf "Sonstiges", falls nicht gefunden
         const category = zutatenLexikon[key] || 'Sonstiges';
-        
-        if (!groupedList[category]) {
-            groupedList[category] = [];
-        }
+        if (!groupedList[category]) groupedList[category] = [];
         groupedList[category].push(item);
     });
 
-    let listHTML = '';
-    // Definiere die exakte Reihenfolge der Kategorien
+    let openItemsHTML = '';
+    let doneItemsHTML = '';
     const categoryOrder = ['Gemüse & Obst', 'Fleisch & Fisch', 'Milchprodukte', 'Trockenwaren', 'Backzutaten', 'Gewürze & Öle', 'Getränke', 'Sonstiges'];
     
-    // Gehe die Kategorien in der vordefinierten Reihenfolge durch
     categoryOrder.forEach(category => {
         if (groupedList[category]) {
-            listHTML += `<li class="list-category-header">${category}</li>`;
+            let openCategoryItems = '';
+            let doneCategoryItems = '';
+            
             groupedList[category].forEach(item => {
-                listHTML += `<li><input type="checkbox"> ${item.amount || ''} ${item.unit || ''} ${item.name}</li>`;
+                const isChecked = shoppingListState[item.name.toLowerCase()];
+                const itemHTML = `<li><input type="checkbox" data-item-name="${item.name.toLowerCase()}" ${isChecked ? 'checked' : ''}> ${item.amount || ''} ${item.unit || ''} ${item.name}</li>`;
+                if (isChecked) {
+                    doneCategoryItems += itemHTML;
+                } else {
+                    openCategoryItems += itemHTML;
+                }
             });
+
+            if (openCategoryItems) {
+                openItemsHTML += `<li class="list-category-header">${category}</li>` + openCategoryItems;
+            }
+            if (doneCategoryItems) {
+                doneItemsHTML += `<li class="list-category-header">${category}</li>` + doneCategoryItems;
+            }
         }
     });
 
-    container.innerHTML = listHTML;
+    let finalHTML = openItemsHTML;
+    if (doneItemsHTML) {
+        finalHTML += `<details class="done-items-details"><summary>Erledigt</summary>${doneItemsHTML}</details>`;
+    }
+    container.innerHTML = finalHTML;
 }
 
 function generateShoppingList() {
@@ -546,6 +562,8 @@ function saveDataToLocalStorage() {
     localStorage.setItem('mealPrepUser', JSON.stringify(userProfile));
     localStorage.setItem('mealPrepFavorites', JSON.stringify(favoriteRecipeIds));
     localStorage.setItem('mealPrepTemplates', JSON.stringify(planTemplates)); // NEU
+    localStorage.setItem('mealPrepShoppingList', JSON.stringify(shoppingListState)); // NEU
+
 }
 
 function loadDataFromLocalStorage() {
@@ -554,6 +572,8 @@ function loadDataFromLocalStorage() {
     const savedFavorites = localStorage.getItem('mealPrepFavorites'); // NEU
     const savedTemplates = localStorage.getItem('mealPrepTemplates'); // NEU
 
+const savedShoppingList = localStorage.getItem('mealPrepShoppingList'); // NEU
+shoppingListState = savedShoppingList ? JSON.parse(savedShoppingList) : {}; // NEU
 
     planTemplates = savedTemplates ? JSON.parse(savedTemplates) : []; // NEU
     weeklyPlan = savedPlan ? JSON.parse(savedPlan) : JSON.parse(JSON.stringify(emptyPlan));
@@ -766,5 +786,14 @@ async function loadZutatenLexikon() {
         console.log(`✅ Lexikon mit ${Object.keys(zutatenLexikon).length} Einträgen geladen.`);
     } catch (error) {
         console.error("❌ Fehler beim Laden des Zutaten-Lexikons:", error);
+    }
+}
+
+function handleShoppingListClick(event) {
+    if (event.target.type === 'checkbox') {
+        const itemName = event.target.dataset.itemName;
+        shoppingListState[itemName] = event.target.checked;
+        saveDataToLocalStorage();
+        renderShoppingList(); // Zeichne die Liste neu, um das Element zu verschieben
     }
 }

@@ -413,3 +413,20 @@ input:checked + .slider:before { transform: translateX(26px); }
 .list-category-header:first-child {
     margin-top: 0;
 }
+
+/* === Einkaufsliste Erledigt-Bereich === */
+.done-items-details {
+    margin-top: 2rem;
+}
+.done-items-details summary {
+    font-weight: bold;
+    color: var(--text-color-light);
+    cursor: pointer;
+    padding: 0.5rem;
+    background-color: var(--background-color);
+    border-radius: 4px;
+}
+.done-items-details li {
+    text-decoration: line-through;
+    opacity: 0.6;
+}
