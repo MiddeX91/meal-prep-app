@@ -451,6 +451,7 @@ function createProgressBarsHTML(totals, profile) {
 
 // === EINKAUFSLISTEN-LOGIK ===
 
+// in app.js
 function renderShoppingList() {
     const list = generateShoppingList();
     const container = document.getElementById('shopping-list-container');
@@ -461,11 +462,12 @@ function renderShoppingList() {
         return;
     }
 
-    // NEU: Gruppiere die Liste nach Kategorie
     const groupedList = {};
     list.forEach(item => {
-        const key = item.name.toLowerCase();
-        const category = zutatenLexikon[key] || 'Sonstiges'; // Fallback auf "Sonstiges"
+        // Stelle sicher, dass der Schlüssel immer kleingeschrieben und ohne Sonderzeichen ist
+        const key = item.name.toLowerCase().replace(/\//g, '-');
+        // Hol die Kategorie und setze sie auf "Sonstiges", falls nicht gefunden
+        const category = zutatenLexikon[key] || 'Sonstiges';
         
         if (!groupedList[category]) {
             groupedList[category] = [];
@@ -473,25 +475,20 @@ function renderShoppingList() {
         groupedList[category].push(item);
     });
 
-    // NEU: Baue das HTML mit den Gruppen-Überschriften
     let listHTML = '';
-const categoryOrder = ['Gemüse & Obst', 'Fleisch & Fisch', 'Milchprodukte', 'Trockenwaren', 'Backzutaten', 'Gewürze & Öle', 'Getränke', 'Sonstiges'];
+    // Definiere die exakte Reihenfolge der Kategorien
+    const categoryOrder = ['Gemüse & Obst', 'Fleisch & Fisch', 'Milchprodukte', 'Trockenwaren', 'Backzutaten', 'Gewürze & Öle', 'Getränke', 'Sonstiges'];
     
-    // Sortiere die Kategorien nach unserer Reihenfolge und füge "Sonstiges" am Ende hinzu
-    const sortedCategories = Object.keys(groupedList).sort((a, b) => {
-        const indexA = categoryOrder.indexOf(a);
-        const indexB = categoryOrder.indexOf(b);
-        if (a === 'Sonstiges') return 1;
-        if (b === 'Sonstiges') return -1;
-        return indexA - indexB;
+    // Gehe die Kategorien in der vordefinierten Reihenfolge durch
+    categoryOrder.forEach(category => {
+        if (groupedList[category]) {
+            listHTML += `<li class="list-category-header">${category}</li>`;
+            groupedList[category].forEach(item => {
+                listHTML += `<li><input type="checkbox"> ${item.amount || ''} ${item.unit || ''} ${item.name}</li>`;
+            });
+        }
     });
 
-    for (const category of sortedCategories) {
-        listHTML += `<li class="list-category-header">${category}</li>`;
-        groupedList[category].forEach(item => {
-            listHTML += `<li><input type="checkbox"> ${item.amount || ''} ${item.unit || ''} ${item.name}</li>`;
-        });
-    }
     container.innerHTML = listHTML;
 }
 
