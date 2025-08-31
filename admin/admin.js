@@ -4,6 +4,8 @@ const uploadButton = document.getElementById('upload-button');
 const fixMiscButton = document.getElementById('fix-misc-btn');
 const statusDiv = document.getElementById('status');
 let recipesToUpload = [];
+const enrichLexikonButton = document.getElementById('enrich-lexikon-btn');
+
 
 // === EVENT LISTENER ===
 
@@ -62,34 +64,30 @@ uploadButton.addEventListener('click', async () => {
             const ingredientKey = ingredient.name.toLowerCase().replace(/\//g, '-');
 
             // 4. Prüfe, ob die Zutat schon bekannt ist. Wenn nicht, frage Gemini.
-            if (!existingLexikon[ingredientKey]) {
-                try {
-                    statusDiv.textContent += `  - Neue Zutat: "${ingredient.name}". Frage KI...\n`;
-                    
-                    // Rufe unsere Backend-Funktion auf
-                    const response = await fetch('/.netlify/functions/categorize-ingredient', {
-                        method: 'POST',
-                        body: JSON.stringify({ ingredientName: ingredient.name })
-                    });
-                    if (!response.ok) throw new Error('Antwort vom Backend war nicht ok.');
+            for (const ingredient of ingredientsToCategorize) {
+    try {
+        statusDiv.textContent += `- Frage APIs nach Daten für "${ingredient.name}"...\n`;
+        
+        const response = await fetch('/.netlify/functions/categorize-ingredient', {
+            method: 'POST',
+            body: JSON.stringify({ ingredientName: ingredient.name })
+        });
+        
+        if (!response.ok) throw new Error('Antwort vom Backend war nicht ok.');
 
-                    const { category } = await response.json();
-                    
-                    // Speichere die neue Kategorie im Lexikon in Firestore
-                    await db.collection('zutatenLexikon').doc(ingredientKey).set({
-                        name: ingredient.name,
-                        kategorie: category
-                    });
+        const { category, fullData } = await response.json(); // Hole das volle Datenpaket
+        const ingredientKey = ingredient.name.toLowerCase().replace(/\//g, '-');
+        
+        // Speichere den kompletten, angereicherten Eintrag im Lexikon
+        await db.collection('zutatenLexikon').doc(ingredientKey).set(fullData);
+        
+        statusDiv.textContent += `  -> Kategorie: "${category}". Nährwerte gefunden. Gespeichert.\n`;
 
-                    // Aktualisiere unser lokales Wissen für diesen Upload
-                    existingLexikon[ingredientKey] = category;
-                    statusDiv.textContent += `    -> KI sagt: "${category}". Im Lexikon gespeichert.\n`;
-
-                } catch (error) {
-                    statusDiv.textContent += `    -> KI-Anfrage fehlgeschlagen: ${error}\n`;
-                }
-                await new Promise(resolve => setTimeout(resolve, 4000)); // Pause von 4 Sek. um das Limit sicher einzuhalten
-            }
+    } catch (error) {
+        statusDiv.textContent += `  -> Anfrage fehlgeschlagen: ${error}\n`;
+    }
+    await new Promise(resolve => setTimeout(resolve, 4000)); // Pause beibehalten
+}
         }
 
         // 5. Nachdem alle Zutaten geprüft (und ggf. kategorisiert) wurden, speichere das Rezept
@@ -104,4 +102,60 @@ uploadButton.addEventListener('click', async () => {
     statusDiv.textContent += "\n🎉 Alle Rezepte in der Datei verarbeitet!";
     uploadButton.disabled = false;
     fixMiscButton.disabled = false;
+});
+
+enrichLexikonButton.addEventListener('click', async () => {
+    statusDiv.textContent = 'Starte Anreicherungsprozess...\nSuche nach Einträgen ohne Nährwerte...\n';
+    uploadButton.disabled = true;
+    fixMiscButton.disabled = true;
+    enrichLexikonButton.disabled = true;
+
+    const snapshot = await db.collection('zutatenLexikon').get();
+    
+    // Finde alle Einträge, bei denen das nährwerte_pro_100g Feld fehlt
+    const itemsToEnrich = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(item => !item.nährwerte_pro_100g);
+
+    if (itemsToEnrich.length === 0) {
+        statusDiv.textContent += 'Keine Einträge zum Anreichern gefunden. Alles auf dem neuesten Stand.';
+        uploadButton.disabled = false;
+        fixMiscButton.disabled = false;
+        enrichLexikonButton.disabled = false;
+        return;
+    }
+
+    statusDiv.textContent += `${itemsToEnrich.length} Einträge zum Anreichern gefunden. Starte API-Anfragen...\n`;
+
+    for (const item of itemsToEnrich) {
+        try {
+            // Wir rufen dieselbe Backend-Funktion auf, sie liefert ja alle Daten
+            const response = await fetch('/.netlify/functions/categorize-ingredient', {
+                method: 'POST',
+                body: JSON.stringify({ ingredientName: item.name })
+            });
+            if (!response.ok) throw new Error('Antwort vom Backend war nicht ok.');
+
+            const { fullData } = await response.json();
+            
+            // Aktualisiere den bestehenden Eintrag mit den vollen Daten
+            if (fullData && fullData.nährwerte_pro_100g) {
+                await db.collection('zutatenLexikon').doc(item.id).update({
+                    nährwerte_pro_100g: fullData.nährwerte_pro_100g
+                });
+                statusDiv.textContent += `  -> Nährwerte für "${item.name}" hinzugefügt.\n`;
+            } else {
+                 statusDiv.textContent += `  -> Konnte keine Nährwerte für "${item.name}" finden.\n`;
+            }
+
+        } catch (error) {
+            statusDiv.textContent += `  -> Anfrage für "${item.name}" fehlgeschlagen: ${error}\n`;
+        }
+        await new Promise(resolve => setTimeout(resolve, 4000)); // Längere Pause zur Sicherheit
+    }
+    
+    statusDiv.textContent += "\n🎉 Anreicherungsprozess abgeschlossen!";
+    uploadButton.disabled = false;
+    fixMiscButton.disabled = false;
+    enrichLexikonButton.disabled = false;
 });

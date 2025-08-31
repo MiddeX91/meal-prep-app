@@ -1,6 +1,4 @@
 const fetch = require('node-fetch');
-const categories = ['Gemüse & Obst', 'Milchprodukte', 'Fleisch & Fisch', 'Trockenwaren', 'Backzutaten', 'Gewürze & Öle', 'Getränke', 'Sonstiges'];
-
 
 exports.handler = async function(event, context) {
     const { ingredientName } = JSON.parse(event.body);
@@ -10,46 +8,63 @@ exports.handler = async function(event, context) {
         return { statusCode: 500, body: JSON.stringify({ error: 'GEMINI_API_KEY nicht gefunden.' }) };
     }
 
-    // NEUE, KORREKTE URL ZUM AKTUELLEN MODELL
-    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-
-const prompt = `Du bist ein Experte für Lebensmitteleinzelhandel. Ordne die folgende Zutat einer der vorgegebenen Supermarkt-Kategorien zu. Antworte ausschließlich mit dem exakten Namen der passendsten Kategorie aus der Liste.
-
-Zutat: "${ingredientName}"
-
-Kategorien: [${categories.join(', ')}]`;
-
-
-    const requestBody = {
-        contents: [{ parts: [{ text: prompt }] }]
-    };
-
     try {
-        const response = await fetch(url, {
+        // === SCHRITT 1: FRAGE GEMINI NACH DER KATEGORIE ===
+        const categories = ['Gemüse & Obst', 'Milchprodukte', 'Fleisch & Fisch', 'Trockenwaren', 'Backzutaten', 'Gewürze & Öle', 'Getränke', 'Sonstiges'];
+        const geminiPrompt = `In welche dieser Supermarkt-Kategorien passt '${ingredientName}' am besten? Antworte NUR mit dem exakten Kategorienamen. Kategorien: [${categories.join(', ')}]`;
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        
+        const geminiResponse = await fetch(geminiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
+            body: JSON.stringify({ contents: [{ parts: [{ text: geminiPrompt }] }] })
         });
-
-        const data = await response.json();
-
-        if (!response.ok || !data.candidates) {
-            console.error("Ungültige Antwort von Gemini:", data);
-            throw new Error(data.error?.message || 'Keine Kandidaten zurückgegeben.');
+        const geminiData = await geminiResponse.json();
+        if (!geminiResponse.ok || !geminiData.candidates) throw new Error(geminiData.error?.message || 'Keine Kategorie von Gemini erhalten.');
+        
+        let foundCategory = 'Sonstiges';
+        const geminiText = geminiData.candidates[0].content.parts[0].text.trim();
+        for (const cat of categories) {
+            if (geminiText.includes(cat)) {
+                foundCategory = cat;
+                break;
+            }
         }
 
-        const category = data.candidates[0].content.parts[0].text.trim();
+        // === SCHRITT 2: FRAGE OPENFOODFACTS NACH NÄHRWERTEN ===
+        const offUrl = `https://world.openfoodfacts.org/api/v2/search?search_terms=${encodeURIComponent(ingredientName)}&fields=product_name,nutriments&page_size=1&json=true`;
+        
+        const offResponse = await fetch(offUrl);
+        const offData = await offResponse.json();
+        
+        let nutritions = { kalorien: 0, protein: 0, fett: 0, kohlenhydrate: 0 };
+        if (offData.products && offData.products.length > 0 && offData.products[0].nutriments) {
+            const nutriments = offData.products[0].nutriments;
+            nutritions.kalorien = nutriments['energy-kcal_100g'] || 0;
+            nutritions.protein = nutriments.proteins_100g || 0;
+            nutritions.fett = nutriments.fat_100g || 0;
+            nutritions.kohlenhydrate = nutriments.carbohydrates_100g || 0;
+        }
 
+        // === SCHRITT 3: KOMBINIERE DIE ERGEBNISSE & SENDE ANTWORT ===
+        const finalLexikonEntry = {
+            name: ingredientName,
+            kategorie: foundCategory,
+            nährwerte_pro_100g: nutritions
+        };
+
+        // Wir senden nur die Kategorie an die Admin-Seite zurück...
+        // ...aber die volle Information wird in die Datenbank geschrieben.
         return {
             statusCode: 200,
-            body: JSON.stringify({ category: category })
+            body: JSON.stringify({ category: foundCategory, fullData: finalLexikonEntry })
         };
 
     } catch (error) {
         console.error("Fehler in der categorize-ingredient Funktion:", error.message);
         return {
             statusCode: 500,
-            body: JSON.stringify({ error: 'Fehler bei der Kommunikation mit der KI.', details: error.message })
+            body: JSON.stringify({ error: 'Fehler bei der API-Kommunikation.', details: error.message })
         };
     }
 };
