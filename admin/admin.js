@@ -28,7 +28,6 @@ fileInput.addEventListener('change', (event) => {
 // in admin/admin.js
 
 uploadButton.addEventListener('click', async () => {
-    // recipesToUpload ist jetzt eine Liste von Zutaten, z.B. [{name: "Karotte"}]
     if (recipesToUpload.length === 0) {
         statusDiv.textContent = 'Keine Zutaten zum Hochladen vorhanden.';
         return;
@@ -37,47 +36,59 @@ uploadButton.addEventListener('click', async () => {
     statusDiv.textContent = 'Starte Kategorisierung...\n';
     uploadButton.disabled = true;
 
-    // Hole das existierende Lexikon, um Duplikate zu vermeiden
     const lexikonSnapshot = await db.collection('zutatenLexikon').get();
     const existingLexikon = {};
     lexikonSnapshot.forEach(doc => {
         existingLexikon[doc.id] = doc.data().kategorie;
     });
 
-    for (const ingredient of recipesToUpload) {
-        const ingredientKey = ingredient.name.toLowerCase();
-        
-        // Frage nur, wenn die Zutat noch nicht im Lexikon ist
-        if (!existingLexikon[ingredientKey]) {
-            try {
-                statusDiv.textContent += `- Frage KI nach Kategorie für "${ingredient.name}"...\n`;
-                
-                // Rufe unsere Backend-Funktion auf
-                const response = await fetch('/.netlify/functions/categorize-ingredient', {
-                    method: 'POST',
-                    body: JSON.stringify({ ingredientName: ingredient.name })
-                });
-                
-                if (!response.ok) throw new Error('Antwort vom Backend war nicht ok.');
-
-                const { category } = await response.json();
-                
-                // Speichere die neue Kategorie im Lexikon in Firestore
-                await db.collection('zutatenLexikon').doc(ingredientKey).set({
-                    name: ingredient.name,
-                    kategorie: category
-                });
-                
-                existingLexikon[ingredientKey] = category;
-                statusDiv.textContent += `  -> KI sagt: "${category}". Gespeichert.\n`;
-
-            } catch (error) {
-                statusDiv.textContent += `  -> KI-Anfrage fehlgeschlagen: ${error}\n`;
-            }
+    // NEUE LOGIK: Wir erstellen eine "Warteschlange"
+    const ingredientsToCategorize = [];
+    recipesToUpload.forEach(item => {
+        const key = item.name.toLowerCase();
+        if (!existingLexikon[key]) {
+            ingredientsToCategorize.push(item.name);
         } else {
-            statusDiv.textContent += `- Zutat "${ingredient.name}" ist bereits bekannt.\n`;
+            statusDiv.textContent += `- Zutat "${item.name}" ist bereits bekannt.\n`;
         }
+    });
+
+    if (ingredientsToCategorize.length === 0) {
+        statusDiv.textContent += "\n🎉 Kategorisierung abgeschlossen! (Nichts zu tun)";
+        uploadButton.disabled = false;
+        return;
     }
+    
+    // Verarbeite die Warteschlange mit einer Pause zwischen den Anfragen
+    for (const ingredientName of ingredientsToCategorize) {
+        try {
+            statusDiv.textContent += `- Frage KI nach Kategorie für "${ingredientName}"...\n`;
+            
+            const response = await fetch('/.netlify/functions/categorize-ingredient', {
+                method: 'POST',
+                body: JSON.stringify({ ingredientName: ingredientName })
+            });
+            
+            if (!response.ok) throw new Error('Antwort vom Backend war nicht ok.');
+
+            const { category } = await response.json();
+            
+            await db.collection('zutatenLexikon').doc(ingredientName.toLowerCase()).set({
+                name: ingredientName,
+                kategorie: category
+            });
+            
+            statusDiv.textContent += `  -> KI sagt: "${category}". Gespeichert.\n`;
+
+        } catch (error) {
+            statusDiv.textContent += `  -> KI-Anfrage fehlgeschlagen: ${error}\n`;
+        }
+        
+        // WICHTIG: Warte 2 Sekunden bis zur nächsten Anfrage, um das Limit nicht zu überschreiten
+        await new Promise(resolve => setTimeout(resolve, 2000)); 
+    }
+
     statusDiv.textContent += "\n🎉 Kategorisierung abgeschlossen!";
+    uploadButton.disabled = false;
 });
 
