@@ -1,0 +1,402 @@
+/* === Grundlegende Stile === */
+:root {
+    --primary-color: #4CAF50;
+    --background-color: #f4f4f4;
+    --card-background: white;
+    --text-color: #333;
+    --text-color-light: #666;
+    --border-color: #eee;
+    --danger-color: #f44336;
+}
+
+body.dark-mode {
+    --primary-color: #66bb6a;
+    --background-color: #121212;
+    --card-background: #1e1e1e;
+    --text-color: #e0e0e0;
+    --text-color-light: #a0a0a0;
+    --border-color: #333;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    padding-bottom: 80px;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+header {
+    background-color: var(--primary-color);
+    color: white;
+    text-align: center;
+    padding: 1rem 0;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+main {
+    padding: 1rem;
+}
+
+h2 {
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: 0.5rem;
+    margin-top: 0;
+}
+
+/* === Seiten-Management === */
+.page { display: none; }
+.page.active { display: block; }
+
+/* === Navigationsleiste === */
+.bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background-color: var(--card-background);
+    box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+    display: flex;
+    justify-content: space-around;
+    font-size: 0.75rem; /* Etwas kleiner gemacht */
+    padding: 0.5rem 0.2rem; /* Weniger horizontaler Abstand */
+    border-top: 1px solid var(--border-color);
+}
+.nav-button {
+    background: none; border: none; color: var(--text-color-light);
+    font-size: 0.8rem; padding: 0.5rem; cursor: pointer;
+    flex-grow: 1;
+}
+.nav-button.active { color: var(--primary-color); font-weight: bold; }
+
+/* === Rezept-Seite === */
+.search-wrapper { margin-bottom: 2rem; }
+#search-input {
+    width: 100%; padding: 0.75rem; font-size: 1rem;
+    border-radius: 8px; border: 1px solid var(--border-color); box-sizing: border-box;
+    background-color: var(--card-background); color: var(--text-color);
+}
+[id^="recipes-section-"] { margin-bottom: 2rem; }
+
+.recipe-card {
+    position: relative; /* NEU: Diese Karte ist jetzt der Ankerpunkt */
+    background-color: var(--card-background);
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.recipe-card summary { cursor: pointer; display: block; }
+.recipe-card summary::-webkit-details-marker, .recipe-card summary::marker { display: none; }
+.card-summary-content { display: flex; justify-content: space-between; align-items: flex-start; }
+.recipe-card h3 { display: inline-block; margin: 0 1rem 0.25rem 0; }
+.card-meta { color: var(--text-color-light); margin: 0; }
+.card-details { padding-top: 1rem; border-top: 1px solid var(--border-color); margin-top: 1rem; }
+.card-details h4 { color: var(--primary-color); margin-bottom: 0.5rem; }
+.card-details ul { list-style: none; padding-left: 0; margin: 0; }
+.card-details li { padding: 0.25rem 0; }
+
+/* === Favoriten-Stern-Button === */
+.favorite-star-btn { /* Neue Klasse */
+    position: absolute;
+    top: 0.8rem;
+    right: 0.8rem;
+    background: none;
+    border: none;
+    font-size: 1.8rem; /* Größe des Stern-Emojis */
+    cursor: pointer;
+    line-height: 1;
+    padding: 5px;
+    
+    /* Standard-Zustand: Ausgegraut */
+    color: #ccc; /* Helles Grau */
+    filter: grayscale(100%); /* Vollständig entsättigt */
+    opacity: 0.4;
+    transform: scale(1);
+    transition: color 0.2s, filter 0.2s, opacity 0.2s, transform 0.2s;
+    z-index: 1;
+}
+
+.favorite-star-btn:hover {
+    opacity: 0.8;
+    transform: scale(1.2);
+}
+
+/* Zustand, wenn das Rezept ein Favorit ist */
+.favorite-star-btn.favorited {
+    color: #FFD700; /* Goldgelb */
+    filter: grayscale(0%); /* Vollfarbig */
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+/* === Wochenplan Seite === */
+#clear-plan-btn { margin-bottom: 1rem; }
+.day-card {
+    background-color: var(--card-background);
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 1.5rem;
+    border-left: 5px solid transparent;
+    transition: border-color 0.3s;
+}
+.day-card.day-incomplete { border-left-color: #ffb74d; }
+.day-card.day-complete { border-left-color: var(--primary-color); }
+.day-card summary { cursor: pointer; display: block; padding: 1.5rem; }
+.day-card summary::-webkit-details-marker { display: none; }
+.day-card-summary-content h3 { margin: 0; }
+.day-card[open] > summary { border-bottom: 1px solid var(--border-color); }
+.day-meal-slots { padding: 0 1.5rem 1.5rem 1.5rem; }
+.meal-slot {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);
+}
+.meal-slot:last-of-type { border-bottom: none; }
+.meal-slot strong { color: var(--text-color); flex-shrink: 0; margin-right: 1rem; }
+.meal-slot span { color: var(--text-color-light); text-align: right; }
+.remove-from-plan-btn {
+    background: none; border: 1px solid #ddd; color: #999;
+    border-radius: 50%; width: 24px; height: 24px;
+    font-size: 0.9rem; line-height: 22px; cursor: pointer;
+    flex-shrink: 0; margin-left: 1rem;
+}
+.add-to-slot-btn {
+    width: 100%; background-color: transparent; border: 1px dashed #ccc;
+    color: var(--text-color-light); padding: 0.5rem; border-radius: 4px;
+    cursor: pointer; text-align: center;
+}
+.add-to-slot-btn:hover { background-color: var(--background-color); }
+
+.button-secondary {
+    background-color: #e0e0e0;
+    color: #333;
+    border: 1px solid #ccc;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+/* Progress Bars */
+.progress-section { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-color); }
+.progress-container {
+    display: grid;
+    grid-template-columns: 80px 1fr 100px; /* Label | Balken | Restwert */
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+.progress-label-left { font-size: 0.9rem; color: var(--text-color); }
+.progress-label-right { font-size: 0.8rem; color: var(--text-color-light); text-align: right; }
+.progress-track { width: 100%; background-color: var(--background-color); border-radius: 6px; height: 8px; }
+.progress-bar { background-color: var(--primary-color); height: 100%; border-radius: 6px; transition: width 0.5s ease-in-out; }
+
+
+
+/* === Einkaufsliste & Profil === */
+#shopping-list-container { list-style: none; padding: 0; }
+#shopping-list-container li {
+    background-color: var(--card-background); padding: 1rem;
+    border-bottom: 1px solid var(--border-color); display: flex; align-items: center;
+}
+#shopping-list-container input { margin-right: 1rem; }
+.profile-card {
+    background-color: var(--card-background); border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 1.5rem; margin-bottom: 1rem;
+}
+.profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.profile-item {
+    background-color: var(--background-color);
+    padding: 1rem; border-radius: 8px; text-align: center;
+    cursor: pointer;
+}
+.profile-item label { font-size: 0.8rem; color: var(--text-color-light); }
+.profile-item span { font-size: 1.5rem; font-weight: bold; display: block; }
+.setting-item { display: flex; justify-content: space-between; align-items: center; }
+.switch { position: relative; display: inline-block; width: 60px; height: 34px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+    position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #ccc; transition: .4s;
+}
+.slider.round { border-radius: 34px; }
+.slider:before {
+    position: absolute; content: ""; height: 26px; width: 26px;
+    left: 4px; bottom: 4px; background-color: white;
+    transition: .4s; border-radius: 50%;
+}
+input:checked + .slider { background-color: var(--primary-color); }
+input:checked + .slider:before { transform: translateX(26px); }
+
+/* === Modal === */
+.modal-overlay {
+    position: fixed; top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.6);
+    display: none;
+    justify-content: center; align-items: center; z-index: 100;
+}
+.modal-overlay.active {
+    display: flex;
+}
+.modal-content {
+    background: var(--card-background); padding: 2rem;
+    border-radius: 8px; width: 90%; max-width: 400px;
+}
+.modal-actions { display: flex; justify-content: flex-end; margin-top: 1.5rem; }
+.modal-actions .modal-cancel-btn {
+    padding: 0.75rem 1.5rem; border: none; border-radius: 8px;
+    font-size: 1rem; cursor: pointer; background-color: #ddd; color: #333;
+}
+#modal-recipe-list {
+    display: flex; flex-direction: column; gap: 0.5rem;
+    max-height: 60vh; overflow-y: auto;
+}
+.select-recipe-btn {
+    width: 100%; padding: 0.75rem; border: 1px solid var(--border-color);
+    background-color: var(--card-background); color: var(--text-color);
+    text-align: left;
+    border-radius: 4px; cursor: pointer;
+}
+.select-recipe-btn:hover { background-color: var(--background-color); }
+
+/* === Toast-Benachrichtigung === */
+#toast-notification {
+    position: fixed;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: white;
+    padding: 1rem 1.5rem;
+    border-radius: 8px;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s, visibility 0.3s, bottom 0.3s;
+    z-index: 200;
+}
+#toast-notification.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* === Allgemeine Buttons === */
+.button-danger {
+    background-color: var(--danger-color); color: white;
+    border: none; padding: 0.75rem 1.5rem; border-radius: 8px;
+    font-size: 1rem; cursor: pointer;
+}
+
+.meal-slot-macros {
+    font-size: 0.8rem;
+    color: var(--text-color-light);
+    margin-top: 0.25rem;
+}
+
+/* === Planungs-Assistent (Smart Fill) === */
+.planner-actions {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.button-primary {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+.day-selection, .fill-mode-selection {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 1rem;
+    background-color: var(--background-color);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+.day-selection label, .fill-mode-selection label {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+#proposal-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+.proposal-category h5 {
+    margin: 0 0 0.5rem 0;
+    color: var(--text-color-light);
+}
+.proposal-item {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.5rem;
+    background-color: var(--background-color);
+    border-radius: 4px;
+}
+.proposal-item .reroll-btn, .proposal-item .change-btn {
+    background: none;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+}
+
+/* === Vorlagen-Modal === */
+#template-modal-body input {
+    width: 100%;
+    padding: 0.75rem;
+    font-size: 1rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    box-sizing: border-box;
+}
+
+#template-modal-body .template-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+#template-modal-body .template-item {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    background-color: var(--card-background);
+    color: var(--text-color);
+    text-align: left;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#template-modal-body .template-item:hover {
+    background-color: var(--background-color);
+}
+.template-item .delete-template-btn {
+    background: none;
+    border: none;
+    color: var(--danger-color);
+    font-size: 1.2rem;
+    cursor: pointer;
+    opacity: 0.5;
+}
+.template-item .delete-template-btn:hover {
+    opacity: 1;
+}

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Rezept-Upload</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; }
+        h1 { text-align: center; }
+        input[type="file"] { display: block; margin-bottom: 20px; }
+        button { font-size: 1rem; padding: 10px 20px; }
+        #status { margin-top: 20px; font-family: monospace; white-space: pre-wrap; background: #f4f4f4; padding: 10px; border-radius: 4px; }
+</style>
+</head>
+<body>
+    <h1>Rezept-Upload zu Firestore</h1>
+    <p>Wähle eine <code>.json</code>-Datei aus.</p>
+    
+    <input type="file" id="json-file-input" accept=".json">
+    <button id="upload-button" disabled>Hochladen</button>
+
+    <div id="status">Warte auf Datei...</div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <script>
+        // FÜGE HIER DEINE PERSÖNLICHEN FIREBASE-CONFIG-DATEN EIN
+  const firebaseConfig = {
+    apiKey: "AIzaSyAdW2TO2Z7lEalZ_hpdZQSoSD1ANiGYhQ0",
+    authDomain: "meal-prep-planer-app.firebaseapp.com",
+    projectId: "meal-prep-planer-app",
+    storageBucket: "meal-prep-planer-app.firebasestorage.app",
+    messagingSenderId: "488372391070",
+    appId: "1:488372391070:web:e57ee72bfe8779247f7f8f",
+    measurementId: "G-8KYYGQCNYF"
+  };
+
+        // Initialisiere Firebase und erstelle die 'db' Variable
+        const app = firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        console.log("✅ Firebase direkt in admin.html initialisiert. 'db' ist jetzt bereit.");
+    </script>
+    
+    <script src="admin.js" defer></script>
+</body>
+</html>

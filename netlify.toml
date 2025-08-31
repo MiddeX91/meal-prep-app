@@ -1,0 +1,12 @@
+[build]
+  # NEU: Der Befehl, die "Zutaten" (Abhängigkeiten) für unsere Funktion zu installieren
+  command = "npm install" 
+  
+  # Der Ordner, in dem unsere Backend-Funktionen liegen
+  functions = "netlify/functions/"
+  
+  # Der Ordner, der die fertige Webseite enthält (der Hauptordner, ".")
+  publish = "."
+
+[functions]
+  node_bundler = "esbuild"

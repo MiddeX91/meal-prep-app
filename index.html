@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MealPrep Planer</title>
+    <meta name="theme-color" content="#4CAF50"/>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <h1 id="page-title">Rezepte</h1>
+    </header>
+
+    <main>
+        <div id="page-recipes" class="page active">
+            <div class="search-wrapper">
+                <input type="search" id="search-input" placeholder="Suche nach Rezepten...">
+            </div>
+            <div id="recipes-section-frühstück">
+                <h2>Frühstück</h2>
+                <div class="recipe-container"></div>
+            </div>
+            <div id="recipes-section-mahlzeit">
+                <h2>Mahlzeit</h2>
+                <div class="recipe-container"></div>
+            </div>
+            <div id="recipes-section-snack">
+                <h2>Snack</h2>
+                <div class="recipe-container"></div>
+            </div>
+        </div>
+
+        <div id="page-planner" class="page">
+            <h2>Dein Wochenplan</h2>
+            <div class="planner-actions">
+                <button id="smart-fill-btn" class="button-primary">Woche planen lassen ✨</button>
+                    <button id="save-plan-btn" class="button-secondary">Plan als Vorlage speichern</button> 
+                    <button id="load-plan-btn" class="button-secondary">Vorlage laden</button>
+                    <button id="clear-plan-btn" class="button-danger">Ganzen Plan löschen</button> 
+            </div>
+            <div id="planner-container"></div>
+        </div>
+
+        <div id="page-cooking" class="page">
+            <h2>Dein Koch-Plan</h2>
+            <p>Hier siehst du eine Zusammenfassung aller Gerichte, die du für die Woche vorkochen musst.</p>
+            <div id="cooking-container"></div>
+        </div>
+
+        <div id="page-shopping-list" class="page">
+            <h2>Deine Einkaufsliste</h2>
+            <ul id="shopping-list-container"></ul>
+        </div>
+
+        <div id="page-user" class="page">
+            <h2>Dein Profil</h2>
+            <div class="profile-card">
+                <h4>Makro-Ziele (klicken zum Ändern)</h4>
+                <div class="profile-grid">
+                    <div class="profile-item" data-key="targetCalories">
+                        <label>Kalorien (kcal)</label>
+                        <span id="user-calories"></span>
+                    </div>
+                    <div class="profile-item" data-key="targetMacros.protein">
+                        <label>Protein (g)</label>
+                        <span id="user-protein"></span>
+                    </div>
+                    <div class="profile-item" data-key="targetMacros.carbs">
+                        <label>Kohlenhydrate (g)</label>
+                        <span id="user-carbs"></span>
+                    </div>
+                    <div class="profile-item" data-key="targetMacros.fat">
+                        <label>Fett (g)</label>
+                        <span id="user-fat"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="profile-card">
+                <h4>Einstellungen</h4>
+                <div class="setting-item">
+                    <label for="dark-mode-toggle">Dark Mode</label>
+                    <label class="switch">
+                        <input type="checkbox" id="dark-mode-toggle">
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </main>
+
+<div id="template-modal" class="modal-overlay">
+    <div class="modal-content">
+        <h3 id="template-modal-title"></h3>
+        <div id="template-modal-body"></div>
+        <div class="modal-actions">
+            <button type="button" class="modal-cancel-btn">Abbrechen</button>
+            <div id="template-modal-actions"></div>
+        </div>
+    </div>
+</div>
+
+    <div id="recipe-select-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 id="modal-title">Wähle ein Rezept</h3>
+            <div id="modal-recipe-list"></div>
+            <div class="modal-actions">
+                <button type="button" class="modal-cancel-btn">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+    <div id="smart-fill-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3>Meal-Prep Assistent</h3>
+            <div class="wizard-step" id="wizard-step-1">
+                <h4>1. Tage & Modus auswählen</h4>
+                <div id="day-selection" class="day-selection">
+                    <label><input type="checkbox" value="montag" checked> Mo</label>
+                    <label><input type="checkbox" value="dienstag" checked> Di</label>
+                    <label><input type="checkbox" value="mittwoch" checked> Mi</label>
+                    <label><input type="checkbox" value="donnerstag" checked> Do</label>
+                    <label><input type="checkbox" value="freitag" checked> Fr</label>
+                    <label><input type="checkbox" value="samstag"> Sa</label>
+                    <label><input type="checkbox" value="sonntag"> So</label>
+                </div>
+                <div id="fill-mode-selection" class="fill-mode-selection">
+                    <label><input type="radio" name="fill-mode" value="empty" checked> Nur leere Mahlzeiten füllen</label>
+                    <label><input type="radio" name="fill-mode" value="overwrite"> Ganze Tage überschreiben</label>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="modal-cancel-btn">Abbrechen</button>
+                    <button id="propose-recipes-btn" class="button-primary">Rezepte vorschlagen</button>
+                </div>
+            </div>
+            <div class="wizard-step" id="wizard-step-2" style="display: none;">
+                <h4>2. Rezept-Vorschau anpassen</h4>
+                <div id="proposal-container"></div>
+                <div class="modal-actions">
+                    <button type="button" class="modal-cancel-btn">Abbrechen</button>
+                    <button id="fill-plan-btn" class="button-primary">Wochenplan damit füllen</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-notification"></div>
+
+    <nav class="bottom-nav">
+        <button data-page="page-recipes" class="nav-button active">Rezepte</button>
+        <button data-page="page-planner" class="nav-button">Wochenplan</button>
+        <button data-page="page-cooking" class="nav-button">Kochen</button>
+        <button data-page="page-shopping-list" class="nav-button">Einkaufsliste</button>
+        <button data-page="page-user" class="nav-button">Profil</button>
+    </nav>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="firebase-init.js"></script>
+    <script type="module" src="app.js" defer></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./service-worker.js')
+            .then(reg => console.log('Service Worker registriert.', reg))
+            .catch(err => console.log('Service Worker Registrierung fehlgeschlagen:', err));
+        });
+      }
+    </script>
+
+</body>
+</html>
