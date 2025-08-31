@@ -61,6 +61,33 @@ async function getNutrition(ingredientName) {
     }
 }
 
+// --- Beispielaufruf ---
+(async () => {
+    const result = await getNutrition("Kartoffel");
+    console.log("Nährwerte:", result);
+})();
+
+
+
+
+
+        // --- Schritt 2: Edamam für die Nährwerte ---
+        const ingredientQuery = `100g ${ingredientName}`;
+        const edamamUrl = `https://api.edamam.com/api/nutrition-data?app_id=${EDAMAM_APP_ID}&app_key=${EDAMAM_APP_KEY}&ingr=${encodeURIComponent(ingredientQuery)}`;
+        
+        const edamamResponse = await fetch(edamamUrl);
+        const edamamData = await edamamResponse.json();
+        
+        let nutritions = null;
+        if (edamamData && edamamData.totalNutrients && edamamData.totalNutrients.ENERC_KCAL) {
+            const nutrients = edamamData.totalNutrients;
+            nutritions = {
+                kalorien: Math.round(nutrients.ENERC_KCAL.quantity),
+                protein: Math.round(nutrients.PROCNT.quantity),
+                fett: Math.round(nutrients.FAT.quantity),
+                kohlenhydrate: Math.round(nutrients.CHOCDF.quantity)
+            };
+        }
 
         // --- Schritt 3: Ergebnisse kombinieren ---
         const finalLexikonEntry = {
