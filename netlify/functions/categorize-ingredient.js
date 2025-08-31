@@ -23,11 +23,14 @@ exports.handler = async function(event, context) {
         for (const cat of categories) { if (geminiText.includes(cat)) { foundCategory = cat; break; } }
 
         // --- Schritt 2: Edamam für die Nährwerte ---
-        const edamamUrl = `https://api.edamam.com/api/nutrition-data?app_id=${EDAMAM_APP_ID}&app_key=${EDAMAM_APP_KEY}&ingr=100g%20${encodeURIComponent(ingredientName)}`;
+        // Die Anfrage muss expliziter sein, z.B. "100g Dill"
+        const ingredientQuery = `100g ${ingredientName}`;
+        const edamamUrl = `https://api.edamam.com/api/nutrition-data?app_id=${EDAMAM_APP_ID}&app_key=${EDAMAM_APP_KEY}&ingr=${encodeURIComponent(ingredientQuery)}`;
+        
         const edamamResponse = await fetch(edamamUrl);
         const edamamData = await edamamResponse.json();
         
-        let nutritions = null; // NEU: Standard ist jetzt 'null' statt Nullen
+        let nutritions = null;
         if (edamamData && edamamData.totalNutrients && edamamData.totalNutrients.ENERC_KCAL) {
             const nutrients = edamamData.totalNutrients;
             nutritions = {
