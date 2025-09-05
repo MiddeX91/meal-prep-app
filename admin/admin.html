@@ -8,44 +8,51 @@
         body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; }
         h1 { text-align: center; }
         input[type="file"] { display: block; margin-bottom: 20px; }
-        button { font-size: 1rem; padding: 10px 20px; }
+        button { font-size: 1rem; padding: 10px 20px; margin-right: 10px; }
         #status { margin-top: 20px; font-family: monospace; white-space: pre-wrap; background: #f4f4f4; padding: 10px; border-radius: 4px; }
-</style>
+        .button-secondary { background-color: #e0e0e0; border: 1px solid #ccc;}
+    </style>
 </head>
 <body>
-    <h1>Rezept-Upload zu Firestore</h1>
-    <p>Wähle eine <code>.json</code>-Datei aus.</p>
+    <h1>Admin-Panel</h1>
     
-<input type="file" id="json-file-input" accept=".json">
+    <h4>Neue Rezepte hochladen</h4>
+    <p>Wähle eine <code>.json</code>-Datei mit neuen Rezepten aus.</p>
+    <input type="file" id="json-file-input" accept=".json">
+    <button id="upload-button" disabled>Neue Rezepte hochladen</button>
 
-<button id="upload-button" disabled>Neue Zutaten hochladen</button>
-<button id="fix-misc-btn" class="button-secondary">"Sonstiges" aufräumen</button>
-<button id="enrich-lexikon-btn" class="button-secondary">Lexikon mit Nährwerten anreichern</button>
+    <hr style="margin: 30px 0;">
 
+    <h4>Datenbank-Wartung</h4>
+    <button id="fix-misc-btn" class="button-secondary">"Sonstiges" aufräumen</button>
+    <button id="enrich-lexikon-btn" class="button-secondary">Lexikon mit Nährwerten anreichern</button>
 
-<div id="status">Warte auf Datei...</div>
+    <div id="status">Warte auf eine Aktion...</div>
 
+    <!-- Firebase Bibliotheken laden -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-functions.js"></script>
 
+    <!-- Firebase Initialisierung direkt hier -->
     <script>
         // FÜGE HIER DEINE PERSÖNLICHEN FIREBASE-CONFIG-DATEN EIN
-  const firebaseConfig = {
-    apiKey: "AIzaSyAdW2TO2Z7lEalZ_hpdZQSoSD1ANiGYhQ0",
-    authDomain: "meal-prep-planer-app.firebaseapp.com",
-    projectId: "meal-prep-planer-app",
-    storageBucket: "meal-prep-planer-app.firebasestorage.app",
-    messagingSenderId: "488372391070",
-    appId: "1:488372391070:web:e57ee72bfe8779247f7f8f",
-    measurementId: "G-8KYYGQCNYF"
-  };
+            const firebaseConfig = {
+                apiKey: "AIzaSyAdW2TO2Z7lEalZ_hpdZQSoSD1ANiGYhQ0",
+                authDomain: "meal-prep-planer-app.firebaseapp.com",
+                projectId: "meal-prep-planer-app",
+                storageBucket: "meal-prep-planer-app.firebasestorage.app",
+                messagingSenderId: "488372391070",
+                appId: "1:488372391070:web:e57ee72bfe8779247f7f8f",
+                measurementId: "G-8KYYGQCNYF"
+            };
 
-        // Initialisiere Firebase und erstelle die 'db' Variable
         const app = firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
-        console.log("✅ Firebase direkt in admin.html initialisiert. 'db' ist jetzt bereit.");
+        console.log("✅ Firebase direkt in admin.html initialisiert.");
     </script>
     
+    <!-- Unser Admin-Skript wird als letztes geladen -->
     <script src="admin.js" defer></script>
 </body>
 </html>
