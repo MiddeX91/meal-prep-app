@@ -6,11 +6,30 @@ const enrichLexikonButton = document.getElementById('enrich-lexikon-btn');
 const statusDiv = document.getElementById('status');
 let dataToUpload = [];
 
-// === HILFSFUNKTION ===
+// === HILFSFUNKTIONEN ===
 function setButtonsDisabled(disabled) {
     uploadButton.disabled = disabled;
     fixMiscButton.disabled = disabled;
     enrichLexikonButton.disabled = disabled;
+}
+
+function parseNutrients(edamamData) {
+    let nutritions = { kalorien: 0, protein: 0, fett: 0, kohlenhydrate: 0 };
+    let nutrientsSource = null;
+
+    if (edamamData && edamamData.totalNutrients && edamamData.totalNutrients.ENERC_KCAL) {
+        nutrientsSource = edamamData.totalNutrients;
+    } else if (edamamData && edamamData.ingredients && edamamData.ingredients[0]?.parsed?.[0]?.nutrients) {
+        nutrientsSource = edamamData.ingredients[0].parsed[0].nutrients;
+    }
+
+    if (nutrientsSource) {
+        nutritions.kalorien = nutrientsSource.ENERC_KCAL ? Math.round(nutrientsSource.ENERC_KCAL.quantity) : 0;
+        nutritions.protein = nutrientsSource.PROCNT ? Math.round(nutrientsSource.PROCNT.quantity) : 0;
+        nutritions.fett = nutrientsSource.FAT ? Math.round(nutrientsSource.FAT.quantity) : 0;
+        nutritions.kohlenhydrate = nutrientsSource.CHOCDF ? Math.round(nutrientsSource.CHOCDF.quantity) : 0;
+    }
+    return nutritions;
 }
 
 // === EVENT LISTENER ===
@@ -34,9 +53,7 @@ fileInput.addEventListener('change', (event) => {
 
 // Event Listener für den Upload-Button (Rezepte & Zutaten)
 uploadButton.addEventListener('click', () => processUpload(dataToUpload, 'upload'));
-// Event Listener für "Aufräumen"
 fixMiscButton.addEventListener('click', () => processMaintenance('Sonstiges'));
-// Event Listener für "Anreichern"
 enrichLexikonButton.addEventListener('click', () => processMaintenance('anreichern'));
 
 
@@ -52,13 +69,9 @@ async function processMaintenance(mode) {
         let itemsToProcess = [];
 
         if (mode === 'Sonstiges') {
-            itemsToProcess = snapshot.docs
-                .map(doc => doc.data())
-                .filter(item => item.kategorie === 'Sonstiges');
+            itemsToProcess = snapshot.docs.map(doc => doc.data()).filter(item => item.kategorie === 'Sonstiges');
         } else { // Modus 'anreichern'
-            itemsToProcess = snapshot.docs
-                .map(doc => doc.data())
-                .filter(item => !item.nährwerte_pro_100g || item.nährwerte_pro_100g.kalorien === 0);
+            itemsToProcess = snapshot.docs.map(doc => doc.data()).filter(item => !item.nährwerte_pro_100g || item.nährwerte_pro_100g.kalorien === 0);
         }
 
         if (itemsToProcess.length === 0) {
@@ -80,15 +93,12 @@ async function processMaintenance(mode) {
     }
 }
 
-
 /**
  * Verarbeitet den Upload einer JSON-Datei (Rezepte oder Zutaten)
  */
-async function processUpload(items, mode) {
-     // Implementierung für den Upload... (kann später hinzugefügt werden)
+async function processUpload(items) {
      statusDiv.textContent = "Upload-Funktion noch nicht implementiert.";
 }
-
 
 /**
  * Ruft das Backend auf, wertet die Rohdaten aus und speichert sie.
@@ -104,24 +114,13 @@ async function processSingleIngredient(ingredientName) {
         const { category, englishName, rawEdamamData } = response.data;
         const docId = ingredientName.toLowerCase().replace(/\//g, '-');
 
-        // --- Rohe Antwort archivieren ---
         await db.collection('zutatenLexikonRAW').doc(docId).set({
             name: ingredientName,
             retrievedAt: new Date(),
-            rawData: rawEdamamData
+            rawData: rawEdamamData || { error: "Keine Rohdaten vom Backend erhalten." }
         }, { merge: true });
         
-        // --- Rohdaten auswerten ---
-        let nutritions = { kalorien: 0, protein: 0, fett: 0, kohlenhydrate: 0 };
-        if (rawEdamamData && rawEdamamData.totalNutrients && rawEdamamData.totalNutrients.ENERC_KCAL) {
-            const nutrients = rawEdamamData.totalNutrients;
-            nutritions.kalorien = nutrients.ENERC_KCAL ? Math.round(nutrients.ENERC_KCAL.quantity) : 0;
-            // ... (weitere Nährwerte aus totalNutrients)
-        } else if (rawEdamamData && rawEdamamData.ingredients?.[0]?.parsed?.[0]?.nutrients) {
-            const nutrients = rawEdamamData.ingredients[0].parsed[0].nutrients;
-            nutritions.kalorien = nutrients.ENERC_KCAL ? Math.round(nutrients.ENERC_KCAL.quantity) : 0;
-            // ... (weitere Nährwerte aus parsed)
-        }
+        const nutritions = parseNutrients(rawEdamamData);
 
         const finalLexikonEntry = {
             name: ingredientName,
@@ -130,7 +129,6 @@ async function processSingleIngredient(ingredientName) {
             english_name: englishName
         };
 
-        // --- Saubere Daten speichern ---
         await db.collection('zutatenLexikon').doc(docId).set(finalLexikonEntry, { merge: true });
         statusDiv.textContent += ` -> OK`;
 

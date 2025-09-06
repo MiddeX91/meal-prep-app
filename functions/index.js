@@ -1,12 +1,10 @@
 const functions = require("firebase-functions");
 const fetch = require("node-fetch");
 
-// Diese Zeile ist der korrekte, moderne Weg, um Secrets zu laden
 exports.categorizeIngredient = functions.runWith({ secrets: ["GEMINI_API_KEY", "EDAMAM_APP_ID", "EDAMAM_APP_KEY"] }).https.onCall(async (data, context) => {
     const ingredientName = data.ingredientName;
     console.log(`--- Starte Prozess für: "${ingredientName}" ---`);
 
-    // Greife auf die Secrets über process.env zu
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
     const EDAMAM_APP_ID = process.env.EDAMAM_APP_ID;
     const EDAMAM_APP_KEY = process.env.EDAMAM_APP_KEY;
@@ -17,37 +15,36 @@ exports.categorizeIngredient = functions.runWith({ secrets: ["GEMINI_API_KEY", "
     }
 
     try {
-        // --- Schritt 1: Gemini für die Kategorie ---
-        console.log("1. Frage Gemini nach der Kategorie...");
+        // --- Gemini-Anfragen ---
         const categories = ['Gemüse & Obst', 'Milchprodukte', 'Fleisch & Fisch', 'Trockenwaren', 'Backzutaten', 'Gewürze & Öle', 'Getränke', 'Sonstiges'];
         const geminiPromptCategory = `In welche dieser Supermarkt-Kategorien passt '${ingredientName}' am besten? Antworte NUR mit dem exakten Kategorienamen. Kategorien: [${categories.join(', ')}]`;
         const categoryResponse = await askGemini(geminiPromptCategory, GEMINI_API_KEY);
-        console.log(`   -> Antwort von Gemini (Kategorie): "${categoryResponse}"`);
         let foundCategory = 'Sonstiges';
         for (const cat of categories) { if (categoryResponse.includes(cat)) { foundCategory = cat; break; } }
 
-        // --- Schritt 2: Gemini für die englische Übersetzung ---
-        console.log("2. Frage Gemini nach der Übersetzung...");
         const geminiPromptTranslate = `Was ist die einfachste, gebräuchlichste englische Übersetzung für das Lebensmittel '${ingredientName}'? Antworte NUR mit den übersetzten Wörtern.`;
         const englishName = await askGemini(geminiPromptTranslate, GEMINI_API_KEY);
-        console.log(`   -> Antwort von Gemini (Übersetzung): "${englishName}"`);
 
-        // --- Schritt 3: Edamam für die Nährwerte ---
+        // --- Edamam-Anfrage ---
         const ingredientQuery = `100g ${englishName}`;
         const edamamUrl = `https://api.edamam.com/api/nutrition-data?app_id=${EDAMAM_APP_ID}&app_key=${EDAMAM_APP_KEY}&ingr=${encodeURIComponent(ingredientQuery)}`;
-        console.log(`3. Frage Edamam an mit: "${ingredientQuery}"`);
-        
         const edamamResponse = await fetch(edamamUrl);
-        const edamamData = await edamamResponse.json();
-        console.log("   -> Rohe Antwort von Edamam:", JSON.stringify(edamamData, null, 2));
         
-        // --- Schritt 4: Ergebnisse bündeln ---
-        // Wir senden die rohen Daten zurück, die Auswertung macht die admin.js
-        console.log(`--- Prozess für "${ingredientName}" abgeschlossen. ---`);
+        let edamamData = { error: `Edamam API-Fehler: Status ${edamamResponse.status}` };
+        if (edamamResponse.ok) {
+            try {
+                edamamData = await edamamResponse.json();
+            } catch (e) {
+                console.error("Edamam hat keine gültige JSON-Antwort gesendet.");
+                edamamData = { error: "Ungültige JSON-Antwort von Edamam" };
+            }
+        }
+        
+        // --- Gib die Ergebnisse zurück ---
         return {
             category: foundCategory,
             englishName: englishName,
-            rawEdamamData: edamamData // Gib die rohe Antwort zurück
+            rawEdamamData: edamamData // Sende die rohe Antwort
         };
 
     } catch (error) {
