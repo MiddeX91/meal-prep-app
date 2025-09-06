@@ -1,11 +1,9 @@
 const functions = require("firebase-functions");
 const fetch = require("node-fetch");
 
-// Diese Zeile ist der korrekte, moderne Weg, um Secrets zu laden
 exports.categorizeIngredient = functions.runWith({ secrets: ["GEMINI_API_KEY", "EDAMAM_APP_ID", "EDAMAM_APP_KEY"] }).https.onCall(async (data, context) => {
     const ingredientName = data.ingredientName;
 
-    // Greife auf die Secrets über process.env zu
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
     const EDAMAM_APP_ID = process.env.EDAMAM_APP_ID;
     const EDAMAM_APP_KEY = process.env.EDAMAM_APP_KEY;
@@ -43,6 +41,9 @@ exports.categorizeIngredient = functions.runWith({ secrets: ["GEMINI_API_KEY", "
         
         const edamamResponse = await fetch(edamamUrl);
         const edamamData = await edamamResponse.json();
+
+        // HIER IST DIE WICHTIGE LOGGING-ZEILE
+        console.log(`Antwort von Edamam für "${ingredientName}":`, JSON.stringify(edamamData, null, 2));
         
         let nutritions = null;
         if (edamamData && edamamData.totalNutrients && edamamData.totalNutrients.ENERC_KCAL) {
