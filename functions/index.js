@@ -43,30 +43,20 @@ exports.categorizeIngredient = functions.https.onCall(async (data, context) => {
     console.log("   -> Rohe Antwort von Edamam:", JSON.stringify(edamamData, null, 2));
     
     let nutritions = null;
-    let nutrientsSource = null; // Variable, um die Quelle der Nährwerte zu speichern
-
-    // VERSUCH 1: Suche in 'totalNutrients' (die häufigste, korrekte Antwort)
-    if (edamamData && edamamData.totalNutrients && edamamData.totalNutrients.ENERC_KCAL) {
-        nutrientsSource = edamamData.totalNutrients;
-        console.log("   -> Nährwerte in 'totalNutrients' gefunden.");
-    } 
-    // VERSUCH 2: Wenn das fehlschlägt, suche in 'parsed' (die andere Variante)
-    else if (edamamData.parsed && edamamData.parsed.length > 0 && edamamData.parsed[0].nutrients) {
-        nutrientsSource = edamamData.parsed[0].nutrients;
-        console.log("   -> Nährwerte in 'parsed' gefunden.");
-    }
-
-    // Wenn eine Quelle gefunden wurde, extrahiere die Daten
-    if (nutrientsSource) {
+    
+    // KORREKTE PRÜFUNG: Wir schauen jetzt in 'parsed[0].nutrients', genau wie du es gefunden hast.
+    if (edamamData.ingredients && edamamData.ingredients.length > 0 && edamamData.ingredients[0].parsed && edamamData.ingredients[0].parsed.length > 0 && edamamData.ingredients[0].parsed[0].nutrients) {
+        const nutrients = edamamData.ingredients[0].parsed[0].nutrients;
+        
         nutritions = {
-            kalorien: nutrientsSource.ENERC_KCAL ? Math.round(nutrientsSource.ENERC_KCAL.quantity) : 0,
-            protein: nutrientsSource.PROCNT ? Math.round(nutrientsSource.PROCNT.quantity) : 0,
-            fett: nutrientsSource.FAT ? Math.round(nutrientsSource.FAT.quantity) : 0,
-            kohlenhydrate: nutrientsSource.CHOCDF ? Math.round(nutrientsSource.CHOCDF.quantity) : 0
+            kalorien: nutrients.ENERC_KCAL ? Math.round(nutrients.ENERC_KCAL.quantity) : 0,
+            protein: nutrients.PROCNT ? Math.round(nutrients.PROCNT.quantity) : 0,
+            fett: nutrients.FAT ? Math.round(nutrients.FAT.quantity) : 0,
+            kohlenhydrate: nutrients.CHOCDF ? Math.round(nutrients.CHOCDF.quantity) : 0
         };
-        console.log("   -> Nährwerte erfolgreich extrahiert:", nutritions);
+        console.log("   -> Nährwerte erfolgreich aus 'parsed' extrahiert:", nutritions);
     } else {
-        console.warn("   -> Konnte in KEINER der bekannten Strukturen Nährwerte finden.");
+        console.warn("   -> Konnte keine Nährwerte im 'parsed'-Array der Edamam-Antwort finden.");
     }
 
     // --- Schritt 4: Ergebnisse kombinieren (unverändert) ---
@@ -84,6 +74,7 @@ exports.categorizeIngredient = functions.https.onCall(async (data, context) => {
     console.error(`Fehler bei der Verarbeitung von "${ingredientName}":`, error);
     throw new functions.https.HttpsError('internal', 'Fehler bei der API-Kommunikation.', error.message);
 }
+
 });
 
 async function askGemini(prompt, apiKey) {
