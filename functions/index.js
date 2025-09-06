@@ -38,7 +38,6 @@ exports.categorizeIngredient = functions.runWith({ secrets: ["GEMINI_API_KEY", "
         const edamamResponse = await fetch(edamamUrl);
         const edamamData = await edamamResponse.json();
         
-        // DER WICHTIGSTE SPION: Gib die komplette Antwort von Edamam aus
         console.log("   -> Rohe Antwort von Edamam:", JSON.stringify(edamamData, null, 2));
         
         let nutritions = null;
