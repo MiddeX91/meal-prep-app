@@ -1,10 +1,12 @@
 const functions = require("firebase-functions");
 const fetch = require("node-fetch");
 
+// Diese Zeile ist der korrekte, moderne Weg, um Secrets zu laden
 exports.categorizeIngredient = functions.runWith({ secrets: ["GEMINI_API_KEY", "EDAMAM_APP_ID", "EDAMAM_APP_KEY"] }).https.onCall(async (data, context) => {
     const ingredientName = data.ingredientName;
     console.log(`--- Starte Prozess für: "${ingredientName}" ---`);
 
+    // Greife auf die Secrets über process.env zu
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
     const EDAMAM_APP_ID = process.env.EDAMAM_APP_ID;
     const EDAMAM_APP_KEY = process.env.EDAMAM_APP_KEY;

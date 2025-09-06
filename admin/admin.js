@@ -51,8 +51,8 @@ fileInput.addEventListener('change', (event) => {
     reader.readAsText(file);
 });
 
-// Event Listener für den Upload-Button (Rezepte & Zutaten)
-uploadButton.addEventListener('click', () => processUpload(dataToUpload, 'upload'));
+// Event Listener
+uploadButton.addEventListener('click', () => processUpload(dataToUpload));
 fixMiscButton.addEventListener('click', () => processMaintenance('Sonstiges'));
 enrichLexikonButton.addEventListener('click', () => processMaintenance('anreichern'));
 
@@ -94,10 +94,10 @@ async function processMaintenance(mode) {
 }
 
 /**
- * Verarbeitet den Upload einer JSON-Datei (Rezepte oder Zutaten)
+ * Verarbeitet den Upload einer JSON-Datei mit Rezepten
  */
 async function processUpload(items) {
-     statusDiv.textContent = "Upload-Funktion noch nicht implementiert.";
+     statusDiv.textContent = "Upload-Funktion für Rezepte noch nicht implementiert.";
 }
 
 /**
@@ -114,12 +114,14 @@ async function processSingleIngredient(ingredientName) {
         const { category, englishName, rawEdamamData } = response.data;
         const docId = ingredientName.toLowerCase().replace(/\//g, '-');
 
+        // --- Rohe Antwort archivieren ---
         await db.collection('zutatenLexikonRAW').doc(docId).set({
             name: ingredientName,
             retrievedAt: new Date(),
             rawData: rawEdamamData || { error: "Keine Rohdaten vom Backend erhalten." }
         }, { merge: true });
         
+        // --- Rohdaten auswerten ---
         const nutritions = parseNutrients(rawEdamamData);
 
         const finalLexikonEntry = {
@@ -129,6 +131,7 @@ async function processSingleIngredient(ingredientName) {
             english_name: englishName
         };
 
+        // --- Saubere Daten speichern ---
         await db.collection('zutatenLexikon').doc(docId).set(finalLexikonEntry, { merge: true });
         statusDiv.textContent += ` -> OK`;
 
