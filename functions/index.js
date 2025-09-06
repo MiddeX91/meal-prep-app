@@ -34,44 +34,46 @@ exports.categorizeIngredient = functions.https.onCall(async (data, context) => {
         console.log(`   -> Antwort von Gemini (Übersetzung): "${englishName}"`);
 
         // --- Schritt 3: Edamam für die Nährwerte ---
-        const ingredientQuery = `100g ${englishName}`;
-        const edamamUrl = `https://api.edamam.com/api/nutrition-data?app_id=${EDAMAM_APP_ID}&app_key=${EDAMAM_APP_KEY}&ingr=${encodeURIComponent(ingredientQuery)}`;
-        console.log(`3. Frage Edamam an mit: "${ingredientQuery}"`);
+    const ingredientQuery = `100g ${englishName}`;
+    const edamamUrl = `https://api.edamam.com/api/nutrition-data?app_id=${process.env.EDAMAM_APP_ID}&app_key=${process.env.EDAMAM_APP_KEY}&ingr=${encodeURIComponent(ingredientQuery)}`;
+    
+    console.log(`3. Frage Edamam an mit: "${ingredientQuery}"`);
+    const edamamResponse = await fetch(edamamUrl);
+    const edamamData = await edamamResponse.json();
+    console.log("   -> Rohe Antwort von Edamam:", JSON.stringify(edamamData, null, 2));
+    
+    let nutritions = null;
+    
+    // KORREKTE PRÜFUNG: Wir schauen jetzt nach 'totalNutrients', genau wie du es gefunden hast.
+    if (edamamData && edamamData.totalNutrients && edamamData.totalNutrients.ENERC_KCAL) {
+        const nutrients = edamamData.totalNutrients;
         
-        const edamamResponse = await fetch(edamamUrl);
-        const edamamData = await edamamResponse.json();
-        
-        console.log("   -> Rohe Antwort von Edamam:", JSON.stringify(edamamData, null, 2));
-        
-        let nutritions = null;
-        if (edamamData && edamamData.totalNutrients && edamamData.totalNutrients.ENERC_KCAL) {
-            const nutrients = edamamData.totalNutrients;
-            nutritions = {
-                kalorien: Math.round(nutrients.ENERC_KCAL.quantity || 0),
-                protein: Math.round(nutrients.PROCNT.quantity || 0),
-                fett: Math.round(nutrients.FAT.quantity || 0),
-                kohlenhydrate: Math.round(nutrients.CHOCDF.quantity || 0)
-            };
-            console.log("   -> Nährwerte erfolgreich extrahiert.");
-        } else {
-            console.warn("   -> Konnte keine Nährwerte ('totalNutrients') in der Edamam-Antwort finden.");
-        }
-
-        // --- Schritt 4: Ergebnisse kombinieren ---
-        const finalLexikonEntry = {
-            name: ingredientName,
-            kategorie: foundCategory,
-            nährwerte_pro_100g: nutritions,
-            english_name: englishName
+        nutritions = {
+            kalorien: nutrients.ENERC_KCAL ? Math.round(nutrients.ENERC_KCAL.quantity) : 0,
+            protein: nutrients.PROCNT ? Math.round(nutrients.PROCNT.quantity) : 0,
+            fett: nutrients.FAT ? Math.round(nutrients.FAT.quantity) : 0,
+            kohlenhydrate: nutrients.CHOCDF ? Math.round(nutrients.CHOCDF.quantity) : 0
         };
-
-        console.log(`--- Prozess für "${ingredientName}" abgeschlossen. ---`);
-        return { category: foundCategory, fullData: finalLexikonEntry };
-
-    } catch (error) {
-        console.error(`Fehler bei der Verarbeitung von "${ingredientName}":`, error);
-        throw new functions.https.HttpsError('internal', 'Fehler bei der API-Kommunikation.', error.message);
+        console.log("   -> Nährwerte erfolgreich aus 'totalNutrients' extrahiert.");
+    } else {
+        console.warn("   -> Konnte keine Nährwerte im 'totalNutrients'-Objekt der Edamam-Antwort finden.");
     }
+
+    // --- Schritt 4: Ergebnisse kombinieren (unverändert) ---
+    const finalLexikonEntry = {
+        name: ingredientName,
+        kategorie: foundCategory,
+        nährwerte_pro_100g: nutritions,
+        english_name: englishName
+    };
+
+    console.log(`--- Prozess für "${ingredientName}" abgeschlossen. ---`);
+    return { category: foundCategory, fullData: finalLexikonEntry };
+
+} catch (error) {
+    console.error(`Fehler bei der Verarbeitung von "${ingredientName}":`, error);
+    throw new functions.https.HttpsError('internal', 'Fehler bei der API-Kommunikation.', error.message);
+}
 });
 
 async function askGemini(prompt, apiKey) {
