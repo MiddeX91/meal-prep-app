@@ -171,34 +171,19 @@ enrichLexikonButton.addEventListener('click', async () => {
         for (const item of itemsToEnrich) {
             try {
                 statusDiv.textContent += `- Verarbeite "${item.name}"...\n`;
-                console.log(`[Admin] Rufe Backend für "${item.name}" auf...`);
 
                 const categorizeFunction = firebase.functions().httpsCallable('categorizeIngredient');
                 const response = await categorizeFunction({ ingredientName: item.name });
-                
-                // SPION 1: Was kommt vom Backend zurück?
-                console.log(`[Admin] Antwort vom Backend für "${item.name}":`, response.data);
-
                 const { fullData } = response.data;
                 
+                // Wir verwenden jetzt .set() mit { merge: true } anstelle von .update()
+                // Das erstellt den Eintrag, falls er nicht existiert, oder aktualisiert ihn, falls er existiert.
+                await db.collection('zutatenLexikon').doc(item.id).set(fullData, { merge: true });
+
                 if (fullData && fullData.nährwerte_pro_100g) {
-                    const dataToUpdate = {
-                        kategorie: fullData.kategorie,
-                        english_name: fullData.english_name,
-                        nährwerte_pro_100g: fullData.nährwerte_pro_100g
-                    };
-                    
-                    // SPION 2: Was versuchen wir zu speichern?
-                    console.log(`[Admin] Versuche, Dokument "${item.id}" zu aktualisieren mit:`, dataToUpdate);
-
-                    await db.collection('zutatenLexikon').doc(item.id).update(dataToUpdate);
-                    
                     statusDiv.textContent += `  -> Nährwerte für "${item.name}" hinzugefügt.\n`;
-                    console.log(`[Admin] Update für "${item.id}" erfolgreich.`);
-
                 } else {
-                     statusDiv.textContent += `  -> Konnte keine Nährwerte für "${item.name}" finden.\n`;
-                     console.warn(`[Admin] Keine Nährwerte in 'fullData' für "${item.name}" gefunden.`);
+                    statusDiv.textContent += `  -> Konnte keine Nährwerte für "${item.name}" finden, aber Kategorie wurde gespeichert.\n`;
                 }
 
             } catch (error) {
