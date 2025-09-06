@@ -44,9 +44,9 @@ exports.categorizeIngredient = functions.https.onCall(async (data, context) => {
     
     let nutritions = null;
     
-    // KORREKTE PRÜFUNG: Wir schauen jetzt nach 'totalNutrients', genau wie du es gefunden hast.
-    if (edamamData && edamamData.totalNutrients && edamamData.totalNutrients.ENERC_KCAL) {
-        const nutrients = edamamData.totalNutrients;
+    // KORREKTE PRÜFUNG: Wir schauen jetzt in 'parsed[0].nutrients', genau wie du es gefunden hast.
+    if (edamamData.parsed && edamamData.parsed.length > 0 && edamamData.parsed[0].nutrients) {
+        const nutrients = edamamData.parsed[0].nutrients;
         
         nutritions = {
             kalorien: nutrients.ENERC_KCAL ? Math.round(nutrients.ENERC_KCAL.quantity) : 0,
@@ -54,9 +54,9 @@ exports.categorizeIngredient = functions.https.onCall(async (data, context) => {
             fett: nutrients.FAT ? Math.round(nutrients.FAT.quantity) : 0,
             kohlenhydrate: nutrients.CHOCDF ? Math.round(nutrients.CHOCDF.quantity) : 0
         };
-        console.log("   -> Nährwerte erfolgreich aus 'totalNutrients' extrahiert.");
+        console.log("   -> Nährwerte erfolgreich aus 'parsed' extrahiert.");
     } else {
-        console.warn("   -> Konnte keine Nährwerte im 'totalNutrients'-Objekt der Edamam-Antwort finden.");
+        console.warn("   -> Konnte keine Nährwerte im 'parsed'-Array der Edamam-Antwort finden.");
     }
 
     // --- Schritt 4: Ergebnisse kombinieren (unverändert) ---
