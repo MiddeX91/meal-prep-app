@@ -1,16 +1,19 @@
 const functions = require("firebase-functions");
 const fetch = require("node-fetch");
 
-exports.categorizeIngredient = functions.runWith({ secrets: ["GEMINI_API_KEY", "EDAMAM_APP_ID", "EDAMAM_APP_KEY"] }).https.onCall(async (data, context) => {
+// Wir laden die Konfiguration auf dem alten, aber zuverlässigen Weg
+const config = functions.config();
+const GEMINI_API_KEY = config.gemini.key;
+const EDAMAM_APP_ID = config.edamam.app_id;
+const EDAMAM_APP_KEY = config.edamam.app_key;
+
+exports.categorizeIngredient = functions.https.onCall(async (data, context) => {
     const ingredientName = data.ingredientName;
     console.log(`--- Starte Prozess für: "${ingredientName}" ---`);
 
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-    const EDAMAM_APP_ID = process.env.EDAMAM_APP_ID;
-    const EDAMAM_APP_KEY = process.env.EDAMAM_APP_KEY;
-
+    // Wir greifen auf die oben geladenen Schlüssel zu
     if (!GEMINI_API_KEY || !EDAMAM_APP_ID || !EDAMAM_APP_KEY) {
-        console.error("Fehler: API-Schlüssel wurden in der Umgebung nicht gefunden.");
+        console.error("Fehler: API-Schlüssel wurden via functions.config() nicht gefunden.");
         throw new functions.https.HttpsError('internal', 'API-Schlüssel auf dem Server nicht konfiguriert.');
     }
 
