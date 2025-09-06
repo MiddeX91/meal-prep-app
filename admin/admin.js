@@ -49,7 +49,6 @@ uploadButton.addEventListener('click', async () => {
         const existingLexikon = new Set(lexikonSnapshot.docs.map(doc => doc.id));
         
         for (const item of dataToUpload) {
-            // Fall 1: Es ist ein komplettes Rezept
             if (item.title && item.ingredients) {
                 statusDiv.textContent += `\nVerarbeite Rezept: "${item.title}"...\n`;
                 for (const ingredient of item.ingredients) {
@@ -61,9 +60,7 @@ uploadButton.addEventListener('click', async () => {
                 }
                 await db.collection('rezepte').add(item);
                 statusDiv.textContent += `✅ Rezept "${item.title}" erfolgreich gespeichert.\n`;
-            }
-            // Fall 2: Es ist nur eine Zutat
-            else if (item.name) {
+            } else if (item.name) {
                 const key = item.name.toLowerCase().replace(/\//g, '-');
                 if (!existingLexikon.has(key)) {
                     await processIngredient(item.name);
@@ -91,26 +88,16 @@ fixMiscButton.addEventListener('click', async () => {
         const snapshot = await db.collection('zutatenLexikon').where('kategorie', '==', 'Sonstiges').get();
         if (snapshot.empty) {
             statusDiv.textContent += 'Keine "Sonstiges"-Einträge gefunden.';
-            setButtonsDisabled(false);
             return;
         }
-
         const itemsToFix = snapshot.docs.map(doc => doc.data());
-        statusDiv.textContent += `${itemsToFix.length} "Sonstiges"-Einträge gefunden. Teste die ersten 3...\n`;
-
-        // NEU: Nur die ersten 3 "Sonstiges"-Einträge für den Test verarbeiten
-        const testItems = itemsToFix.slice(0, 3);
-
-        for (const item of testItems) {
+        for (const item of itemsToFix.slice(0, 3)) { // Testmodus: nur 3
             await processIngredient(item.name);
         }
-        
-        statusDiv.textContent += "\n🎉 Test-Aufräum-Prozess abgeschlossen!";
-
     } catch (dbError) {
-        console.error("[Admin] Fehler beim Aufräumen:", dbError);
-        statusDiv.textContent = `Fehler beim Lesen des Lexikons: ${dbError.message}`;
+        statusDiv.textContent = `Fehler: ${dbError.message}`;
     } finally {
+        statusDiv.textContent += "\n🎉 Test-Aufräum-Prozess abgeschlossen!";
         setButtonsDisabled(false);
     }
 });
@@ -129,32 +116,23 @@ enrichLexikonButton.addEventListener('click', async () => {
 
         if (itemsToEnrich.length === 0) {
             statusDiv.textContent += 'Keine Einträge zum Anreichern gefunden.';
-            setButtonsDisabled(false);
             return;
         }
-
-        statusDiv.textContent += `${itemsToEnrich.length} Einträge zum Anreichern gefunden. Teste die ersten 3...\n`;
-
-        // NEU: Wir nehmen nur die ersten 3 Einträge für den Test
-        const testItems = itemsToEnrich.slice(0, 3);
-
-        for (const item of testItems) {
+        statusDiv.textContent += `${itemsToEnrich.length} Einträge gefunden. Teste die ersten 3...\n`;
+        for (const item of itemsToEnrich.slice(0, 3)) { // Testmodus: nur 3
             await processIngredient(item.name);
         }
-        
-        statusDiv.textContent += "\n🎉 Test-Anreicherungsprozess abgeschlossen!";
-
     } catch (dbError) {
-        console.error("[Admin] Schwerwiegender Fehler beim Zugriff auf Firestore:", dbError);
-        statusDiv.textContent = `Fehler beim Lesen des Lexikons: ${dbError.message}`;
+        statusDiv.textContent = `Fehler: ${dbError.message}`;
     } finally {
+        statusDiv.textContent += "\n🎉 Test-Anreicherungsprozess abgeschlossen!";
         setButtonsDisabled(false);
     }
 });
 
 
 /**
- * Zentrale Funktion, die das Backend für eine einzelne Zutat aufruft und das Ergebnis speichert.
+ * Zentrale Funktion, die das Backend aufruft und die Rohdaten zur Analyse speichert.
  */
 async function processIngredient(ingredientName) {
     try {
@@ -162,12 +140,23 @@ async function processIngredient(ingredientName) {
         
         const categorizeFunction = firebase.functions().httpsCallable('categorizeIngredient');
         const response = await categorizeFunction({ ingredientName: ingredientName });
-        const { fullData } = response.data;
-        
-        const docId = ingredientName.toLowerCase().replace(/\//g, '-');
-        await db.collection('zutatenLexikon').doc(docId).set(fullData, { merge: true });
+        const { rawEdamamData } = response.data;
 
-        statusDiv.textContent += `  -> Daten für "${ingredientName}" erfolgreich gespeichert/aktualisiert.\n`;
+        // Gib die rohe Antwort in der Browser-Konsole aus, damit wir sie analysieren können
+        console.log(`Rohe Antwort von Edamam für "${ingredientName}":`, rawEdamamData);
+
+        const docId = ingredientName.toLowerCase().replace(/\//g, '-');
+
+        // --- SCHRITT 1: Die rohe Antwort archivieren ---
+        await db.collection('zutatenLexikonRAW').doc(docId).set({
+            name: ingredientName,
+            retrievedAt: new Date(),
+            rawData: rawEdamamData
+        }, { merge: true });
+        statusDiv.textContent += `  -> Rohe API-Antwort für "${ingredientName}" archiviert.\n`;
+
+        // --- SCHRITT 2 & 3 (Auswerten & Speichern) sind vorübergehend deaktiviert ---
+        statusDiv.textContent += `  -> Nächster Schritt: Auswertung und Speicherung in 'zutatenLexikon'.\n`;
 
     } catch (error) {
         console.error(`[Admin] Fehler bei der Verarbeitung von "${ingredientName}":`, error);
