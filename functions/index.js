@@ -1,10 +1,8 @@
 const functions = require("firebase-functions");
 const fetch = require("node-fetch");
 
-// Diese Zeile ist der korrekte, moderne Weg, um Secrets zu laden
 exports.categorizeIngredient = functions.runWith({ secrets: ["GEMINI_API_KEY", "EDAMAM_APP_ID", "EDAMAM_APP_KEY"] }).https.onCall(async (data, context) => {
     const ingredientName = data.ingredientName;
-    console.log(`--- Starte Prozess für: "${ingredientName}" ---`);
 
     // Greife auf die Secrets über process.env zu
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -12,20 +10,20 @@ exports.categorizeIngredient = functions.runWith({ secrets: ["GEMINI_API_KEY", "
     const EDAMAM_APP_KEY = process.env.EDAMAM_APP_KEY;
 
     if (!GEMINI_API_KEY || !EDAMAM_APP_ID || !EDAMAM_APP_KEY) {
-        console.error("Fehler: API-Schlüssel wurden in der Umgebung nicht gefunden.");
+        console.error("API-Schlüssel wurden in der Umgebung nicht gefunden.");
         throw new functions.https.HttpsError('internal', 'API-Schlüssel auf dem Server nicht konfiguriert.');
     }
 
     try {
-        // --- Gemini-Anfragen ---
+        // --- Gemini-Anfrage (Kategorie) ---
         const categories = ['Gemüse & Obst', 'Milchprodukte', 'Fleisch & Fisch', 'Trockenwaren', 'Backzutaten', 'Gewürze & Öle', 'Getränke', 'Sonstiges'];
         const geminiPromptCategory = `In welche dieser Supermarkt-Kategorien passt '${ingredientName}' am besten? Antworte NUR mit dem exakten Kategorienamen. Kategorien: [${categories.join(', ')}]`;
-        const categoryResponse = await askGemini(geminiPromptCategory, GEMINI_API_KEY);
-        let foundCategory = 'Sonstiges';
-        for (const cat of categories) { if (categoryResponse.includes(cat)) { foundCategory = cat; break; } }
+        const geminiCategoryData = await askGemini(geminiPromptCategory, GEMINI_API_KEY);
 
+        // --- Gemini-Anfrage (Übersetzung) ---
         const geminiPromptTranslate = `Was ist die einfachste, gebräuchlichste englische Übersetzung für das Lebensmittel '${ingredientName}'? Antworte NUR mit den übersetzten Wörtern.`;
-        const englishName = await askGemini(geminiPromptTranslate, GEMINI_API_KEY);
+        const geminiTranslateData = await askGemini(geminiPromptTranslate, GEMINI_API_KEY);
+        const englishName = geminiTranslateData.candidates[0].content.parts[0].text.trim();
 
         // --- Edamam-Anfrage ---
         const ingredientQuery = `100g ${englishName}`;
@@ -37,16 +35,15 @@ exports.categorizeIngredient = functions.runWith({ secrets: ["GEMINI_API_KEY", "
             try {
                 edamamData = await edamamResponse.json();
             } catch (e) {
-                console.error("Edamam hat keine gültige JSON-Antwort gesendet.");
                 edamamData = { error: "Ungültige JSON-Antwort von Edamam" };
             }
         }
         
-        // --- Gib die Ergebnisse zurück ---
+        // --- Gib die ROHESTEN Ergebnisse zurück ---
         return {
-            category: foundCategory,
-            englishName: englishName,
-            rawEdamamData: edamamData // Sende die rohe Antwort
+            rawGeminiCategory: geminiCategoryData,
+            rawGeminiTranslation: geminiTranslateData,
+            rawEdamamData: edamamData 
         };
 
     } catch (error) {
@@ -55,11 +52,14 @@ exports.categorizeIngredient = functions.runWith({ secrets: ["GEMINI_API_KEY", "
     }
 });
 
+// Hilfsfunktion gibt jetzt die ganze Antwort zurück
 async function askGemini(prompt, apiKey) {
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
     const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
     const data = await response.json();
-    if (!response.ok || !data.candidates) { throw new Error(data.error?.message || 'Ungültige Antwort von Gemini.'); }
-    return data.candidates[0].content.parts[0].text.trim();
+    if (!response.ok) {
+        throw new Error(data.error?.message || 'Ungültige Antwort von Gemini.');
+    }
+    return data;
 }
 
