@@ -26,13 +26,26 @@ exports.categorizeIngredient = functions.runWith({ secrets: ["GEMINI_API_KEY", "
         const ingredientQuery = `100g ${englishName}`;
         const edamamUrl = `https://api.edamam.com/api/nutrition-data?app_id=${EDAMAM_APP_ID}&app_key=${EDAMAM_APP_KEY}&ingr=${encodeURIComponent(ingredientQuery)}`;
         const edamamResponse = await fetch(edamamUrl);
-        const edamamData = await edamamResponse.json(); // Hol die rohen Daten
+        
+        // NEU: Robuste Fehlerbehandlung für die Edamam-Antwort
+        let edamamData = {}; // Standard-Fallback
+        if (edamamResponse.ok) {
+            try {
+                edamamData = await edamamResponse.json();
+            } catch (e) {
+                console.error("Edamam hat keine gültige JSON-Antwort gesendet.");
+                edamamData = { error: "Ungültige JSON-Antwort von Edamam" };
+            }
+        } else {
+            console.error(`Edamam API-Fehler: Status ${edamamResponse.status}`);
+            edamamData = { error: `Edamam API-Fehler: Status ${edamamResponse.status}` };
+        }
 
-        // --- Gib die Rohdaten zurück an die Admin-Seite ---
+        // --- Gib die (jetzt garantierte) Antwort zurück an die Admin-Seite ---
         return {
             category: foundCategory,
             englishName: englishName,
-            rawEdamamData: edamamData // Wir geben die komplette Antwort zurück
+            rawEdamamData: edamamData
         };
 
     } catch (error) {
