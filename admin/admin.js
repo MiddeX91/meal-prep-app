@@ -150,47 +150,63 @@ fixMiscButton.addEventListener('click', async () => {
  * Geht alle Lexikon-Einträge durch und fügt fehlende Nährwerte hinzu.
  */
 enrichLexikonButton.addEventListener('click', async () => {
-    statusDiv.textContent = 'Starte Anreicherungsprozess...\nSuche nach Einträgen ohne Nährwerte...\n';
-    setButtonsDisabled(true);
+    try {
+        console.log("Button 'Lexikon anreichern' geklickt.");
+        statusDiv.textContent = 'Starte Anreicherungsprozess...\n';
+        setButtonsDisabled(true);
 
-    const snapshot = await db.collection('zutatenLexikon').get();
-    
-    const itemsToEnrich = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(item => !item.nährwerte_pro_100g);
+        statusDiv.textContent += 'Suche nach Einträgen im Lexikon...\n';
+        console.log("1. Frage Firestore nach dem kompletten Lexikon...");
+        const snapshot = await db.collection('zutatenLexikon').get();
+        console.log(`2. Antwort von Firestore erhalten. ${snapshot.size} Dokumente gefunden.`);
 
-    if (itemsToEnrich.length === 0) {
-        statusDiv.textContent += 'Keine Einträge zum Anreichern gefunden. Alles auf dem neuesten Stand.';
-        setButtonsDisabled(false);
-        return;
-    }
+        const itemsToEnrich = snapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .filter(item => !item.nährwerte_pro_100g);
 
-    statusDiv.textContent += `${itemsToEnrich.length} Einträge zum Anreichern gefunden. Starte API-Anfragen...\n`;
-
-    for (const item of itemsToEnrich) {
-        try {
-            const categorizeFunction = firebase.functions().httpsCallable('categorizeIngredient');
-            const response = await categorizeFunction({ ingredientName: item.name });
-            const { fullData } = response.data;
-            
-            if (fullData && fullData.nährwerte_pro_100g) {
-                await db.collection('zutatenLexikon').doc(item.id).update({
-                    nährwerte_pro_100g: fullData.nährwerte_pro_100g
-                });
-                statusDiv.textContent += `  -> Nährwerte für "${item.name}" hinzugefügt.\n`;
-            } else {
-                 statusDiv.textContent += `  -> Konnte keine Nährwerte für "${item.name}" finden.\n`;
-            }
-
-        } catch (error) {
-            console.error(`Fehler bei der Verarbeitung von "${item.name}":`, error);
-            statusDiv.textContent += `  -> Anfrage für "${item.name}" fehlgeschlagen: ${error.message}\n`;
+        if (itemsToEnrich.length === 0) {
+            statusDiv.textContent += 'Keine Einträge zum Anreichern gefunden. Alles auf dem neuesten Stand.';
+            setButtonsDisabled(false);
+            return;
         }
-        await new Promise(resolve => setTimeout(resolve, 4000));
+
+        statusDiv.textContent += `${itemsToEnrich.length} Einträge zum Anreichern gefunden. Starte API-Anfragen...\n`;
+
+        for (const item of itemsToEnrich) {
+            try {
+                console.log(`3. Verarbeite "${item.name}"...`);
+                statusDiv.textContent += `- Verarbeite "${item.name}"...\n`;
+                
+                const categorizeFunction = firebase.functions().httpsCallable('categorizeIngredient');
+                const response = await categorizeFunction({ ingredientName: item.name });
+                const { fullData } = response.data;
+                
+                if (fullData && fullData.nährwerte_pro_100g) {
+                    await db.collection('zutatenLexikon').doc(item.id).update({
+                        nährwerte_pro_100g: fullData.nährwerte_pro_100g
+                    });
+                    statusDiv.textContent += `  -> Nährwerte für "${item.name}" hinzugefügt.\n`;
+                } else {
+                     statusDiv.textContent += `  -> Konnte keine Nährwerte für "${item.name}" finden.\n`;
+                }
+
+            } catch (error) {
+                console.error(`Fehler bei der API-Anfrage für "${item.name}":`, error);
+                statusDiv.textContent += `  -> API-Anfrage für "${item.name}" fehlgeschlagen: ${error.message}\n`;
+            }
+            await new Promise(resolve => setTimeout(resolve, 4000));
+        }
+        
+        statusDiv.textContent += "\n🎉 Anreicherungsprozess abgeschlossen!";
+
+    } catch (error) {
+        // Dieser Block fängt Fehler bei der allerersten Datenbank-Anfrage ab
+        console.error("Ein schwerwiegender Fehler ist aufgetreten:", error);
+        statusDiv.textContent = `Ein schwerwiegender Fehler ist aufgetreten: ${error.message}. Bitte prüfe die Konsole (F12).`;
+    } finally {
+        // Dieser Block stellt sicher, dass die Buttons immer wieder aktiviert werden
+        setButtonsDisabled(false);
     }
-    
-    statusDiv.textContent += "\n🎉 Anreicherungsprozess abgeschlossen!";
-    setButtonsDisabled(false);
 });
 
 
