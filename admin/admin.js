@@ -150,16 +150,12 @@ fixMiscButton.addEventListener('click', async () => {
  * Geht alle Lexikon-Einträge durch und fügt fehlende Nährwerte hinzu.
  */
 enrichLexikonButton.addEventListener('click', async () => {
+    statusDiv.textContent = 'Starte Anreicherungsprozess...\nSuche nach Einträgen ohne Nährwerte...\n';
+    setButtonsDisabled(true);
+
     try {
-        console.log("Button 'Lexikon anreichern' geklickt.");
-        statusDiv.textContent = 'Starte Anreicherungsprozess...\n';
-        setButtonsDisabled(true);
-
-        statusDiv.textContent += 'Suche nach Einträgen im Lexikon...\n';
-        console.log("1. Frage Firestore nach dem kompletten Lexikon...");
         const snapshot = await db.collection('zutatenLexikon').get();
-        console.log(`2. Antwort von Firestore erhalten. ${snapshot.size} Dokumente gefunden.`);
-
+        
         const itemsToEnrich = snapshot.docs
             .map(doc => ({ id: doc.id, ...doc.data() }))
             .filter(item => !item.nährwerte_pro_100g);
@@ -174,37 +170,50 @@ enrichLexikonButton.addEventListener('click', async () => {
 
         for (const item of itemsToEnrich) {
             try {
-                console.log(`3. Verarbeite "${item.name}"...`);
                 statusDiv.textContent += `- Verarbeite "${item.name}"...\n`;
-                
+                console.log(`[Admin] Rufe Backend für "${item.name}" auf...`);
+
                 const categorizeFunction = firebase.functions().httpsCallable('categorizeIngredient');
                 const response = await categorizeFunction({ ingredientName: item.name });
+                
+                // SPION 1: Was kommt vom Backend zurück?
+                console.log(`[Admin] Antwort vom Backend für "${item.name}":`, response.data);
+
                 const { fullData } = response.data;
                 
                 if (fullData && fullData.nährwerte_pro_100g) {
-                    await db.collection('zutatenLexikon').doc(item.id).update({
+                    const dataToUpdate = {
+                        kategorie: fullData.kategorie,
+                        english_name: fullData.english_name,
                         nährwerte_pro_100g: fullData.nährwerte_pro_100g
-                    });
+                    };
+                    
+                    // SPION 2: Was versuchen wir zu speichern?
+                    console.log(`[Admin] Versuche, Dokument "${item.id}" zu aktualisieren mit:`, dataToUpdate);
+
+                    await db.collection('zutatenLexikon').doc(item.id).update(dataToUpdate);
+                    
                     statusDiv.textContent += `  -> Nährwerte für "${item.name}" hinzugefügt.\n`;
+                    console.log(`[Admin] Update für "${item.id}" erfolgreich.`);
+
                 } else {
                      statusDiv.textContent += `  -> Konnte keine Nährwerte für "${item.name}" finden.\n`;
+                     console.warn(`[Admin] Keine Nährwerte in 'fullData' für "${item.name}" gefunden.`);
                 }
 
             } catch (error) {
-                console.error(`Fehler bei der API-Anfrage für "${item.name}":`, error);
-                statusDiv.textContent += `  -> API-Anfrage für "${item.name}" fehlgeschlagen: ${error.message}\n`;
+                console.error(`[Admin] Fehler bei der Verarbeitung von "${item.name}":`, error);
+                statusDiv.textContent += `  -> Anfrage für "${item.name}" fehlgeschlagen: ${error.message}\n`;
             }
             await new Promise(resolve => setTimeout(resolve, 4000));
         }
         
         statusDiv.textContent += "\n🎉 Anreicherungsprozess abgeschlossen!";
 
-    } catch (error) {
-        // Dieser Block fängt Fehler bei der allerersten Datenbank-Anfrage ab
-        console.error("Ein schwerwiegender Fehler ist aufgetreten:", error);
-        statusDiv.textContent = `Ein schwerwiegender Fehler ist aufgetreten: ${error.message}. Bitte prüfe die Konsole (F12).`;
+    } catch (dbError) {
+        console.error("[Admin] Schwerwiegender Fehler beim Zugriff auf Firestore:", dbError);
+        statusDiv.textContent = `Fehler beim Lesen des Lexikons: ${dbError.message}`;
     } finally {
-        // Dieser Block stellt sicher, dass die Buttons immer wieder aktiviert werden
         setButtonsDisabled(false);
     }
 });
