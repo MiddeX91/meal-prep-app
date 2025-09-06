@@ -29,56 +29,47 @@ exports.categorizeIngredient = functions.runWith({ secrets: ["GEMINI_API_KEY", "
         const englishName = await askGemini(geminiPromptTranslate, GEMINI_API_KEY);
 
         // --- Schritt 3: Edamam für die Nährwerte ---
-const ingredientQuery = `100g ${englishName}`;
-    const edamamUrl = `https://api.edamam.com/api/nutrition-data?app_id=${process.env.EDAMAM_APP_ID}&app_key=${process.env.EDAMAM_APP_KEY}&ingr=${encodeURIComponent(ingredientQuery)}`;
-    
-    console.log(`3. Frage Edamam an mit: "${ingredientQuery}"`);
-    const edamamResponse = await fetch(edamamUrl);
-    const edamamData = await edamamResponse.json();
-    console.log("   -> Rohe Antwort von Edamam:", JSON.stringify(edamamData, null, 2));
-    
-    let nutritions; // Nicht mehr 'null' als Standard
-    let nutrientsSource = null;
+        const ingredientQuery = `100g ${englishName}`;
+        const edamamUrl = `https://api.edamam.com/api/nutrition-data?app_id=${EDAMAM_APP_ID}&app_key=${EDAMAM_APP_KEY}&ingr=${encodeURIComponent(ingredientQuery)}`;
+        
+        console.log(`Frage Edamam an mit: "${ingredientQuery}"`);
+        const edamamResponse = await fetch(edamamUrl);
+        const edamamData = await edamamResponse.json();
+        
+        let nutritions = { kalorien: 0, protein: 0, fett: 0, kohlenhydrate: 0 }; // Standard-Objekt
+        
+        // FINALE, KORREKTE PRÜFUNG: Wir schauen exakt in der Struktur, die du gefunden hast.
+        if (edamamData.ingredients && edamamData.ingredients[0]?.parsed?.[0]?.nutrients) {
+            const nutrients = edamamData.ingredients[0].parsed[0].nutrients;
+            
+            nutritions.kalorien = nutrients.ENERC_KCAL ? Math.round(nutrients.ENERC_KCAL.quantity) : 0;
+            nutritions.protein = nutrients.PROCNT ? Math.round(nutrients.PROCNT.quantity) : 0;
+            nutritions.fett = nutrients.FAT ? Math.round(nutrients.FAT.quantity) : 0;
+            nutritions.kohlenhydrate = nutrients.CHOCDF ? Math.round(nutrients.CHOCDF.quantity) : 0;
 
-    if (edamamData && edamamData.totalNutrients && edamamData.totalNutrients.ENERC_KCAL) {
-        nutrientsSource = edamamData.totalNutrients;
-    } else if (edamamData.ingredients && edamamData.ingredients[0]?.parsed?.[0]?.nutrients) {
-        nutrientsSource = edamamData.ingredients[0].parsed[0].nutrients;
-    }
+            console.log("   -> Nährwerte erfolgreich aus 'parsed' extrahiert:", nutritions);
+        } else {
+            console.warn("   -> Konnte keine Nährwerte im 'parsed'-Array der Edamam-Antwort finden. Speichere Standard-Objekt.");
+        }
 
-    if (nutrientsSource) {
-        nutritions = {
-            kalorien: nutrientsSource.ENERC_KCAL ? Math.round(nutrientsSource.ENERC_KCAL.quantity) : 0,
-            protein: nutrientsSource.PROCNT ? Math.round(nutrientsSource.PROCNT.quantity) : 0,
-            fett: nutrientsSource.FAT ? Math.round(nutrientsSource.FAT.quantity) : 0,
-            kohlenhydrate: nutrientsSource.CHOCDF ? Math.round(nutrientsSource.CHOCDF.quantity) : 0
+        // --- Schritt 4: Ergebnisse kombinieren ---
+        const finalLexikonEntry = {
+            name: ingredientName,
+            kategorie: foundCategory,
+            nährwerte_pro_100g: nutritions,
+            english_name: englishName
         };
-        console.log("   -> Nährwerte erfolgreich extrahiert.");
-    } else {
-        // NEU: Wenn keine Nährwerte gefunden werden, erstelle ein sauberes Null-Objekt
-        console.warn("   -> Konnte keine Nährwerte finden. Erstelle Standard-Objekt.");
-        nutritions = { kalorien: 0, protein: 0, fett: 0, kohlenhydrate: 0 };
+
+        console.log(`--- Prozess für "${ingredientName}" abgeschlossen. ---`);
+        return { category: foundCategory, fullData: finalLexikonEntry };
+
+    } catch (error) {
+        console.error(`Fehler bei der Verarbeitung von "${ingredientName}":`, error);
+        throw new functions.https.HttpsError('internal', 'Fehler bei der API-Kommunikation.', error.message);
     }
-
-    // --- Schritt 4: Ergebnisse kombinieren ---
-    const finalLexikonEntry = {
-        name: ingredientName,
-        kategorie: foundCategory,
-        nährwerte_pro_100g: nutritions,
-        english_name: englishName
-    };
-
-    console.log(`--- Prozess für "${ingredientName}" abgeschlossen. ---`);
-    return { category: foundCategory, fullData: finalLexikonEntry };
-
-} catch (error) {
-    console.error(`Fehler bei der Verarbeitung von "${ingredientName}":`, error);
-    throw new functions.https.HttpsError('internal', 'Fehler bei der API-Kommunikation.', error.message);
-}
-
-
 });
 
+// Hilfsfunktion, um Gemini-Anfragen zu kapseln
 async function askGemini(prompt, apiKey) {
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
     const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
@@ -86,3 +77,4 @@ async function askGemini(prompt, apiKey) {
     if (!response.ok || !data.candidates) { throw new Error(data.error?.message || 'Ungültige Antwort von Gemini.'); }
     return data.candidates[0].content.parts[0].text.trim();
 }
+
