@@ -17,152 +17,127 @@ function setButtonsDisabled(disabled) {
 
 fileInput.addEventListener('change', (event) => {
     const file = event.target.files[0];
-    if (!file) {
-        statusDiv.textContent = 'Keine Datei ausgewählt.';
-        return;
-    }
+    if (!file) return;
     const reader = new FileReader();
     reader.onload = (e) => {
         try {
             dataToUpload = JSON.parse(e.target.result);
-            statusDiv.textContent = `${dataToUpload.length} Einträge in der Datei gefunden. Bereit zum Verarbeiten.`;
+            statusDiv.textContent = `${dataToUpload.length} Einträge in Datei gefunden. Bereit.`;
             uploadButton.disabled = false;
         } catch (error) {
-            statusDiv.textContent = `Fehler: Die Datei ist keine gültige JSON-Datei.\n${error}`;
+            statusDiv.textContent = `Fehler: Ungültige JSON-Datei.\n${error}`;
             uploadButton.disabled = true;
         }
     };
     reader.readAsText(file);
 });
 
-// Event Listener für den Upload-Button (Rezepte UND/ODER Zutaten)
-uploadButton.addEventListener('click', async () => {
-    if (dataToUpload.length === 0) {
-        statusDiv.textContent = 'Keine Daten in der Datei zum Hochladen.';
-        return;
-    }
-    statusDiv.textContent = 'Starte intelligenten Upload...\n';
-    setButtonsDisabled(true);
-
-    try {
-        const lexikonSnapshot = await db.collection('zutatenLexikon').get();
-        const existingLexikon = new Set(lexikonSnapshot.docs.map(doc => doc.id));
-        
-        for (const item of dataToUpload) {
-            if (item.title && item.ingredients) {
-                statusDiv.textContent += `\nVerarbeite Rezept: "${item.title}"...\n`;
-                for (const ingredient of item.ingredients) {
-                    const key = ingredient.name.toLowerCase().replace(/\//g, '-');
-                    if (ingredient.name && !existingLexikon.has(key)) {
-                        await processIngredient(ingredient.name);
-                        existingLexikon.add(key);
-                    }
-                }
-                await db.collection('rezepte').add(item);
-                statusDiv.textContent += `✅ Rezept "${item.title}" erfolgreich gespeichert.\n`;
-            } else if (item.name) {
-                const key = item.name.toLowerCase().replace(/\//g, '-');
-                if (!existingLexikon.has(key)) {
-                    await processIngredient(item.name);
-                    existingLexikon.add(key);
-                } else {
-                     statusDiv.textContent += `- Zutat "${item.name}" ist bereits bekannt.\n`;
-                }
-            }
-        }
-    } catch (error) {
-        statusDiv.textContent += `\n❌ Ein Fehler ist aufgetreten: ${error.message}`;
-    }
-    
-    statusDiv.textContent += "\n🎉 Upload-Prozess abgeschlossen!";
-    setButtonsDisabled(false);
-});
+// Event Listener für den Upload-Button (Rezepte & Zutaten)
+uploadButton.addEventListener('click', () => processUpload(dataToUpload, 'upload'));
+// Event Listener für "Aufräumen"
+fixMiscButton.addEventListener('click', () => processMaintenance('Sonstiges'));
+// Event Listener für "Anreichern"
+enrichLexikonButton.addEventListener('click', () => processMaintenance('anreichern'));
 
 
-// Event Listener für den "Aufräumen"-Button
-fixMiscButton.addEventListener('click', async () => {
-    statusDiv.textContent = 'Starte Aufräum-Prozess...\nSuche nach "Sonstiges"-Einträgen...\n';
-    setButtonsDisabled(true);
-
-    try {
-        const snapshot = await db.collection('zutatenLexikon').where('kategorie', '==', 'Sonstiges').get();
-        if (snapshot.empty) {
-            statusDiv.textContent += 'Keine "Sonstiges"-Einträge gefunden.';
-            return;
-        }
-        const itemsToFix = snapshot.docs.map(doc => doc.data());
-        for (const item of itemsToFix.slice(0, 3)) { // Testmodus: nur 3
-            await processIngredient(item.name);
-        }
-    } catch (dbError) {
-        statusDiv.textContent = `Fehler: ${dbError.message}`;
-    } finally {
-        statusDiv.textContent += "\n🎉 Test-Aufräum-Prozess abgeschlossen!";
-        setButtonsDisabled(false);
-    }
-});
-
-
-// Event Listener für den "Anreichern"-Button
-enrichLexikonButton.addEventListener('click', async () => {
-    statusDiv.textContent = 'Starte Anreicherungsprozess...\nSuche nach Einträgen ohne Nährwerte...\n';
+/**
+ * Zentrale Funktion für Wartungsarbeiten ("Sonstiges" & "Anreichern")
+ */
+async function processMaintenance(mode) {
+    statusDiv.textContent = `Starte Prozess: "${mode}"...\nSuche nach relevanten Einträgen...`;
     setButtonsDisabled(true);
 
     try {
         const snapshot = await db.collection('zutatenLexikon').get();
-        const itemsToEnrich = snapshot.docs
-            .map(doc => doc.data())
-            .filter(item => !item.nährwerte_pro_100g || item.nährwerte_pro_100g.kalorien === 0);
+        let itemsToProcess = [];
 
-        if (itemsToEnrich.length === 0) {
-            statusDiv.textContent += 'Keine Einträge zum Anreichern gefunden.';
+        if (mode === 'Sonstiges') {
+            itemsToProcess = snapshot.docs
+                .map(doc => doc.data())
+                .filter(item => item.kategorie === 'Sonstiges');
+        } else { // Modus 'anreichern'
+            itemsToProcess = snapshot.docs
+                .map(doc => doc.data())
+                .filter(item => !item.nährwerte_pro_100g || item.nährwerte_pro_100g.kalorien === 0);
+        }
+
+        if (itemsToProcess.length === 0) {
+            statusDiv.textContent += '\nKeine relevanten Einträge gefunden.';
+            setButtonsDisabled(false);
             return;
         }
-        statusDiv.textContent += `${itemsToEnrich.length} Einträge gefunden. Teste die ersten 3...\n`;
-        for (const item of itemsToEnrich.slice(0, 3)) { // Testmodus: nur 3
-            await processIngredient(item.name);
+
+        statusDiv.textContent += `\n${itemsToProcess.length} Einträge gefunden. Starte Verarbeitung...`;
+        for (const item of itemsToProcess.slice(0, 3)) { // Testmodus: Nur die ersten 3
+            await processSingleIngredient(item.name);
         }
-    } catch (dbError) {
-        statusDiv.textContent = `Fehler: ${dbError.message}`;
+        statusDiv.textContent += `\n\n🎉 Testlauf für "${mode}" abgeschlossen!`;
+
+    } catch (error) {
+        statusDiv.textContent += `\n❌ Fehler: ${error.message}`;
     } finally {
-        statusDiv.textContent += "\n🎉 Test-Anreicherungsprozess abgeschlossen!";
         setButtonsDisabled(false);
     }
-});
+}
 
 
 /**
- * Zentrale Funktion, die das Backend aufruft und die Rohdaten zur Analyse speichert.
+ * Verarbeitet den Upload einer JSON-Datei (Rezepte oder Zutaten)
  */
-async function processIngredient(ingredientName) {
+async function processUpload(items, mode) {
+     // Implementierung für den Upload... (kann später hinzugefügt werden)
+     statusDiv.textContent = "Upload-Funktion noch nicht implementiert.";
+}
+
+
+/**
+ * Ruft das Backend auf, wertet die Rohdaten aus und speichert sie.
+ */
+async function processSingleIngredient(ingredientName) {
     try {
-        statusDiv.textContent += `- Verarbeite "${ingredientName}"...\n`;
+        statusDiv.textContent += `\n- Verarbeite "${ingredientName}"...`;
         
         const categorizeFunction = firebase.functions().httpsCallable('categorizeIngredient');
         const response = await categorizeFunction({ ingredientName: ingredientName });
-        const { rawEdamamData } = response.data;
 
-        // Gib die rohe Antwort in der Browser-Konsole aus, damit wir sie analysieren können
-        console.log(`Rohe Antwort von Edamam für "${ingredientName}":`, rawEdamamData);
-
+        console.log(`[Admin] Rohe Antwort für "${ingredientName}":`, response.data);
+        const { category, englishName, rawEdamamData } = response.data;
         const docId = ingredientName.toLowerCase().replace(/\//g, '-');
 
-        // --- SCHRITT 1: Die rohe Antwort archivieren ---
+        // --- Rohe Antwort archivieren ---
         await db.collection('zutatenLexikonRAW').doc(docId).set({
             name: ingredientName,
             retrievedAt: new Date(),
             rawData: rawEdamamData
         }, { merge: true });
-        statusDiv.textContent += `  -> Rohe API-Antwort für "${ingredientName}" archiviert.\n`;
+        
+        // --- Rohdaten auswerten ---
+        let nutritions = { kalorien: 0, protein: 0, fett: 0, kohlenhydrate: 0 };
+        if (rawEdamamData && rawEdamamData.totalNutrients && rawEdamamData.totalNutrients.ENERC_KCAL) {
+            const nutrients = rawEdamamData.totalNutrients;
+            nutritions.kalorien = nutrients.ENERC_KCAL ? Math.round(nutrients.ENERC_KCAL.quantity) : 0;
+            // ... (weitere Nährwerte aus totalNutrients)
+        } else if (rawEdamamData && rawEdamamData.ingredients?.[0]?.parsed?.[0]?.nutrients) {
+            const nutrients = rawEdamamData.ingredients[0].parsed[0].nutrients;
+            nutritions.kalorien = nutrients.ENERC_KCAL ? Math.round(nutrients.ENERC_KCAL.quantity) : 0;
+            // ... (weitere Nährwerte aus parsed)
+        }
 
-        // --- SCHRITT 2 & 3 (Auswerten & Speichern) sind vorübergehend deaktiviert ---
-        statusDiv.textContent += `  -> Nächster Schritt: Auswertung und Speicherung in 'zutatenLexikon'.\n`;
+        const finalLexikonEntry = {
+            name: ingredientName,
+            kategorie: category,
+            nährwerte_pro_100g: nutritions,
+            english_name: englishName
+        };
+
+        // --- Saubere Daten speichern ---
+        await db.collection('zutatenLexikon').doc(docId).set(finalLexikonEntry, { merge: true });
+        statusDiv.textContent += ` -> OK`;
 
     } catch (error) {
-        console.error(`[Admin] Fehler bei der Verarbeitung von "${ingredientName}":`, error);
-        statusDiv.textContent += `  -> Anfrage für "${ingredientName}" fehlgeschlagen: ${error.message}\n`;
+        console.error(`[Admin] Fehler bei "${ingredientName}":`, error);
+        statusDiv.textContent += ` -> FEHLER: ${error.message}`;
     }
-    // Pause, um API-Limits nicht zu überschreiten
     await new Promise(resolve => setTimeout(resolve, 4000));
 }
 
