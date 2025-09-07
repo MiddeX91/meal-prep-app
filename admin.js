@@ -5,6 +5,8 @@ const fixMiscButton = document.getElementById('fix-misc-btn');
 const enrichLexikonButton = document.getElementById('enrich-lexikon-btn');
 const processRawDataButton = document.getElementById('process-raw-data-btn'); // NEUER BUTTON
 const statusDiv = document.getElementById('status');
+const calculateNutritionButton = document.getElementById('calculate-nutrition-btn'); // NEU
+
 
 // HINWEIS: Firebase wird jetzt automatisch durch /__/firebase/init.js initialisiert.
 const db = firebase.firestore();
@@ -16,6 +18,8 @@ function setButtonsDisabled(disabled) {
     fixMiscButton.disabled = disabled;
     enrichLexikonButton.disabled = disabled;
     processRawDataButton.disabled = disabled; // NEU
+        calculateNutritionButton.disabled = disabled; // NEU
+
 }
 
 const delay = ms => new Promise(res => setTimeout(res, ms));
@@ -41,6 +45,8 @@ fileInput.addEventListener('change', (event) => {
 enrichLexikonButton.addEventListener('click', () => processMaintenance('anreichern'));
 fixMiscButton.addEventListener('click', () => processMaintenance('Sonstiges'));
 uploadButton.addEventListener('click', () => alert("Diese Funktion wird später implementiert."));
+calculateNutritionButton.addEventListener('click', calculateAndSetRecipeNutrition); // NEU
+
 
 // NEUER EVENT LISTENER FÜR DEN NEUEN BUTTON
 processRawDataButton.addEventListener('click', processRawData);
@@ -233,3 +239,91 @@ async function processSingleIngredient(ingredientName) {
     }
 }
 
+async function calculateAndSetRecipeNutrition() {
+    statusDiv.textContent = 'Starte Prozess: Nährwerte für Rezepte berechnen...\n';
+    setButtonsDisabled(true);
+
+    try {
+        // 1. Lade das gesamte Zutatenlexikon in den Speicher für schnellen Zugriff
+        statusDiv.textContent += 'Lade Zutatenlexikon...';
+        const lexikonSnapshot = await db.collection('zutatenLexikon').get();
+        const lexikonMap = new Map();
+        lexikonSnapshot.forEach(doc => {
+            // Speichere unter einem normalisierten Key (kleingeschrieben)
+            lexikonMap.set(doc.data().name.toLowerCase(), doc.data());
+        });
+        statusDiv.textContent += ` ✅ (${lexikonMap.size} Einträge geladen)\n`;
+
+        // 2. Lade alle Rezepte
+        statusDiv.textContent += 'Lade alle Rezepte...';
+        const recipesSnapshot = await db.collection('rezepte').get();
+        statusDiv.textContent += ` ✅ (${recipesSnapshot.size} Rezepte gefunden)\n\n`;
+        
+        // 3. Bereite einen Batch-Write vor, um alle Änderungen auf einmal zu speichern
+        const batch = db.batch();
+        let recipesUpdatedCount = 0;
+
+        // 4. Gehe jedes Rezept durch und berechne die Nährwerte
+        for (const recipeDoc of recipesSnapshot.docs) {
+            const recipe = recipeDoc.data();
+            statusDiv.textContent += `- Verarbeite "${recipe.title}"...`;
+
+            if (!recipe.ingredients || recipe.ingredients.length === 0) {
+                statusDiv.textContent += ' -> ⚠️ Keine Zutaten, übersprungen.\n';
+                continue;
+            }
+
+            let totalKcal = 0;
+            let totalProtein = 0;
+            let totalCarbs = 0;
+            let totalFat = 0;
+            let missingIngredients = [];
+
+            for (const ingredient of recipe.ingredients) {
+                const lexikonData = lexikonMap.get(ingredient.name.toLowerCase());
+
+                if (lexikonData && lexikonData.kalorien_pro_100g !== undefined) {
+                    const factor = (ingredient.amount || 0) / 100;
+                    totalKcal += (lexikonData.kalorien_pro_100g || 0) * factor;
+                    totalProtein += (lexikonData.nährwerte_pro_100g?.protein || 0) * factor;
+                    totalCarbs += (lexikonData.nährwerte_pro_100g?.carbs || 0) * factor;
+                    totalFat += (lexikonData.nährwerte_pro_100g?.fat || 0) * factor;
+                } else {
+                    missingIngredients.push(ingredient.name);
+                }
+            }
+
+            if (missingIngredients.length > 0) {
+                statusDiv.textContent += ` -> ❌ FEHLER: Zutat(en) nicht im Lexikon gefunden: ${missingIngredients.join(', ')}\n`;
+            } else {
+                // Füge die Update-Operation zum Batch hinzu
+                const recipeRef = db.collection('rezepte').doc(recipeDoc.id);
+                batch.update(recipeRef, {
+                    basis_kalorien: Math.round(totalKcal),
+                    basis_makros: {
+                        protein: Math.round(totalProtein),
+                        carbs: Math.round(totalCarbs),
+                        fat: Math.round(totalFat)
+                    }
+                });
+                recipesUpdatedCount++;
+                statusDiv.textContent += ` -> ✅ Berechnet: ${Math.round(totalKcal)} kcal\n`;
+            }
+        }
+
+        // 5. Führe den Batch-Write aus
+        if (recipesUpdatedCount > 0) {
+            statusDiv.textContent += `\nSpeichere Änderungen für ${recipesUpdatedCount} Rezepte...`;
+            await batch.commit();
+            statusDiv.textContent += ' ✅\n';
+        }
+
+        statusDiv.textContent += `\n🎉 Prozess abgeschlossen! ${recipesUpdatedCount} von ${recipesSnapshot.size} Rezepten wurden aktualisiert.`;
+
+    } catch (error) {
+        statusDiv.textContent += `\n\n❌ Ein schwerwiegender Fehler ist aufgetreten: ${error.message}`;
+        console.error(error);
+    } finally {
+        setButtonsDisabled(false);
+    }
+}
