@@ -1,3 +1,6 @@
+document.addEventListener('DOMContentLoaded', () => { 
+
+
 // === DOM-ELEMENTE ===
 const fileInput = document.getElementById('json-file-input');
 const uploadButton = document.getElementById('upload-button');
@@ -327,3 +330,4 @@ async function calculateAndSetRecipeNutrition() {
         setButtonsDisabled(false);
     }
 }
+});
