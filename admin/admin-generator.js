@@ -1,3 +1,6 @@
+export function initGeneratorPage(db, functions) {
+
+
 document.addEventListener('DOMContentLoaded', async () => {
 
     // === AUTHENTIFIZIERUNG (Wichtig für Datenbankzugriff) ===
@@ -149,3 +152,4 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 });
 
+}

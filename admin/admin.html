@@ -3,58 +3,114 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin-Panel</title>
-    <!-- CSS-Stile bleiben gleich -->
-    <style>
-        body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; }
-        h1 { text-align: center; }
-        button { font-size: 1rem; padding: 10px 15px; margin: 5px; cursor: pointer; border-radius: 5px; border: 1px solid #ccc; }
-        #status { margin-top: 20px; font-family: monospace; white-space: pre-wrap; background: #f4f4f4; padding: 10px; border-radius: 4px; min-height: 50px;}
-        .button-primary { background-color: #4CAF50; color: white; border-color: #4CAF50;}
-        .button-secondary { background-color: #e0e0e0; }
-        .button-danger { background-color: #f4b6b6; border-color: #d38d8d; }
-        .button-debug { background-color: #b6dff4; border-color: #8da9d3; }
-        .button-group { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
-        h4 { margin-top: 0; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px;}
-    </style>
+    <title>Admin Panel</title>
+    <!-- Verlinkung zur Admin-spezifischen CSS-Datei im selben Ordner -->
+    <link rel="stylesheet" href="admin-styles.css">
 </head>
 <body>
-    <h1>Admin-Panel</h1>
 
-    <div class="button-group">
-        <h4>Schritt 1: Inventur</h4>
-        <button id="inventory-btn" class="button-primary">Fehlende Zutaten im Lexikon anlegen</button>
-    </div>
+    <h1>Admin Panel</h1>
 
-    <div class="button-group">
-        <h4>Schritt 2: Daten anreichern</h4>
-        <button id="enrich-lexikon-btn" class="button-secondary">Lexikon mit Nährwerten anreichern</button>
-        <button id="process-raw-btn" class="button-secondary">RAW-Daten verarbeiten</button>
-    </div>
-    
-    <div class="button-group">
-        <h4>Schritt 3: Rezepte aktualisieren</h4>
-        <button id="calculate-nutrition-btn" class="button-danger">Nährwerte für alle Rezepte berechnen</button>
-    </div>
+    <!-- Navigation -->
+    <nav class="admin-nav">
+        <a href="#database" class="active">Datenbank-Wartung</a>
+        <a href="#generator">Rezept-Generator</a>
+        <a href="#settings">Einstellungen</a>
+    </nav>
 
-    <div class="button-group">
-        <h4>Werkzeuge & Debugging</h4>
-        <button id="debug-recipe-btn" class="button-debug">Rezept-Nährwerte debuggen</button>
-    </div>
+    <!-- Seiten-Container -->
+    <main>
+        <!-- Seite 1: Datenbank-Wartung -->
+        <div id="page-database" class="admin-page">
+            <div class="container">
+                <h2>Datenbank-Wartung</h2>
+                <p>Führe diese Schritte in der richtigen Reihenfolge aus, um die Datenbank zu pflegen und zu aktualisieren.</p>
+                
+                <h4 style="margin-top: 20px;">Schritt 1: Inventur</h4>
+                <p>Sucht in allen Rezepten nach Zutaten, die noch nicht im Lexikon vorhanden sind, und legt leere Platzhalter dafür an.</p>
+                <button id="find-missing-btn" class="button-secondary">Fehlende Zutaten im Lexikon anlegen</button>
+                
+                <h4 style="margin-top: 20px;">Schritt 2: Daten anreichern</h4>
+                <p>Holt für alle leeren Platzhalter im Lexikon die Nährwertdaten und Kategorien von externen APIs.</p>
+                <button id="enrich-lexikon-btn" class="button-secondary">Lexikon mit Nährwerten anreichern</button>
 
-    <div id="status">Warte auf eine Aktion...</div>
+                <h4 style="margin-top: 20px;">Schritt 3: Rezepte aktualisieren</h4>
+                <p>Berechnet die Gesamt-Nährwerte für alle Rezepte basierend auf den Daten im Lexikon und speichert sie.</p>
+                <button id="calculate-nutrition-btn" class="button-secondary">Nährwerte für alle Rezepte berechnen</button>
+
+                <hr style="margin: 30px 0;">
+
+                <h4>Debugging-Werkzeuge</h4>
+                <button id="debug-recipe-btn" class="button-secondary">Rezept-Nährwerte debuggen</button>
+                
+                <div id="status">Warte auf eine Aktion...</div>
+            </div>
+        </div>
+
+        <!-- Seite 2: Rezept-Generator -->
+        <div id="page-generator" class="admin-page">
+            <div id="briefing-section" class="container">
+                <h2>1. Briefing für Gemini</h2>
+                <div class="form-group">
+                    <label for="recipe-description">Beschreibe dein Wunsch-Rezept</label>
+                    <input type="text" id="recipe-description" placeholder="z.B. Ein leichtes, vegetarisches Pfannengericht mit Tofu">
+                </div>
+                <div class="form-group">
+                    <label>Eigenschaften (Tags)</label>
+                    <div class="checkbox-group">
+                        <span class="checkbox-item"><input type="checkbox" id="tag-vegetarisch" value="Vegetarisch"> Vegetarisch</span>
+                        <span class="checkbox-item"><input type="checkbox" id="tag-vegan" value="Vegan"> Vegan</span>
+                        <span class="checkbox-item"><input type="checkbox" id="tag-lowcarb" value="Low-Carb"> Low-Carb</span>
+                        <span class="checkbox-item"><input type="checkbox" id="tag-schnell" value="Schnell (< 30min)"> Schnell (&lt; 30min)</span>
+                        <span class="checkbox-item"><input type="checkbox" id="tag-reift" value="Reift nach"> "Reift nach"</span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="calories-target">Kalorien-Ziel (ca.)</label>
+                    <input type="number" id="calories-target" value="500">
+                </div>
+                <button id="generate-btn" class="button-primary">Rezept-Idee generieren</button>
+            </div>
+        
+            <div id="loader"><p>Gemini denkt nach...</p></div>
+        
+            <div id="editor-section" class="container admin-page">
+                <h2>2. Vorschau & Bearbeitung</h2>
+                <div class="form-group"><label for="edit-title">Titel</label><input type="text" id="edit-title"></div>
+                <div class="form-group"><label for="edit-art">Art</label><select id="edit-art"><option value="Mahlzeit">Mahlzeit</option><option value="Frühstück">Frühstück</option><option value="Snack">Snack</option></select></div>
+                <div class="form-group"><label for="edit-haltbarkeit">Haltbarkeit (Tage)</label><input type="number" id="edit-haltbarkeit"></div>
+                <div class="form-group"><label for="edit-zubereitung">Zubereitung</label><textarea id="edit-zubereitung"></textarea></div>
+                <div class="form-group">
+                    <label>Zutaten</label>
+                    <div id="ingredients-container"></div>
+                    <button id="add-ingredient-btn" class="button-secondary" style="margin-top: 10px;">+ Zutat hinzufügen</button>
+                </div>
+                <button id="check-nutrition-btn" class="button-secondary">Nährwerte prüfen & einfügen</button>
+                <div id="nutrition-results"></div>
+                <hr style="margin: 20px 0;">
+                <button id="save-btn" class="button-save">Rezept in Datenbank speichern</button>
+                <button id="regenerate-btn" class="button-secondary">Neue Idee generieren</button>
+            </div>
+        </div>
+
+        <!-- Seite 3: Einstellungen -->
+        <div id="page-settings" class="admin-page">
+            <div class="container">
+                <h2>Einstellungen</h2>
+                <p>Dieser Bereich ist für zukünftige Einstellungen reserviert.</p>
+            </div>
+        </div>
+    </main>
 
     <!-- Firebase SDKs -->
     <script src="/__/firebase/8.10.1/firebase-app.js"></script>
     <script src="/__/firebase/8.10.1/firebase-firestore.js"></script>
     <script src="/__/firebase/8.10.1/firebase-functions.js"></script>
     <script src="/__/firebase/8.10.1/firebase-auth.js"></script>
-    
-    <!-- Initialisiere Firebase -->
     <script src="/__/firebase/init.js"></script>
 
-    <!-- Dein Admin-Skript -->
-    <script src="admin.js"></script>
+    <!-- Unser zentrales Admin-Skript als MODUL laden -->
+    <script type="module" src="admin.js"></script>
 </body>
 </html>
 
