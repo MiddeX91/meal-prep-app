@@ -157,3 +157,59 @@ async function fetchEdamamWithRetry(url) {
     }
 }
 
+// =================================================================
+// NEU: GEMINI REZEPT-GENERATOR FUNKTION
+// =================================================================
+exports.generateRecipeIdea = onCall({ secrets: ["GEMINI_API_KEY"] }, async (request) => {
+    const { description, tags, calories } = request.data;
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
+    if (!GEMINI_API_KEY) {
+        throw new functions.https.HttpsError('internal', 'GEMINI_API_KEY nicht konfiguriert.');
+    }
+
+    // Erstelle einen detaillierten Prompt für Gemini
+    const prompt = `
+        Du bist ein kreativer Koch für Meal-Prep. Erstelle ein Rezept basierend auf folgenden Kriterien:
+        - Beschreibung: "${description}"
+        - Eigenschaften: ${tags.join(', ')}
+        - Kalorienziel: ca. ${calories} kcal pro Portion.
+
+        Gib deine Antwort AUSSCHLIESSLICH als sauberes JSON-Objekt zurück. Das JSON-Objekt muss exakt die folgenden Schlüssel haben:
+        - "titel": Ein kurzer, ansprechender Name für das Gericht.
+        - "art": Wähle EINEN der folgenden Werte: 'Mahlzeit', 'Frühstück', 'Snack'.
+        - "haltbarkeit": Eine geschätzte Zahl in Tagen, wie lange das Gericht im Kühlschrank haltbar ist.
+        - "reift": Ein boolean (true/false), ob das Gericht über Nacht geschmacklich besser wird.
+        - "zubereitung": Ein String mit den Zubereitungsschritten.
+        - "zutaten": Ein Array von Objekten. Jedes Objekt muss die Schlüssel "menge_einheit" (z.B. "100g", "1 Stk") und "name" haben.
+
+        Beispiel für eine Zutat: { "menge_einheit": "200g", "name": "Hähnchenbrust" }
+    `;
+
+    try {
+        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error?.message || 'Ungültige Antwort von Gemini.');
+        }
+
+        const data = await response.json();
+        const rawText = data.candidates[0].content.parts[0].text;
+
+        // Reinige den Text, um sicherzustellen, dass es valides JSON ist
+        const jsonText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+        const recipeData = JSON.parse(jsonText);
+
+        return recipeData;
+
+    } catch (error) {
+        console.error("Fehler bei der Gemini-Anfrage:", error);
+        throw new functions.https.HttpsError('internal', 'Fehler bei der Kommunikation mit der Gemini-API.', error.message);
+    }
+});

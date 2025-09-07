@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Rezept-Generator</title>
+    <!-- Verlinkung zu deiner externen CSS-Datei -->
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <h1>Gemini Rezept-Generator</h1>
+
+    <!-- Eingabebereich -->
+    <div id="briefing-section" class="container">
+        <h2>1. Briefing für Gemini</h2>
+        <div class="form-group">
+            <label for="recipe-description">Beschreibe dein Wunsch-Rezept</label>
+            <input type="text" id="recipe-description" placeholder="z.B. Ein leichtes, vegetarisches Pfannengericht mit Tofu und viel Gemüse">
+        </div>
+        <div class="form-group">
+            <label>Eigenschaften (Tags)</label>
+            <div class="checkbox-group">
+                <div class="checkbox-item"><input type="checkbox" id="tag-vegetarisch" value="Vegetarisch"> Vegetarisch</div>
+                <div class="checkbox-item"><input type="checkbox" id="tag-vegan" value="Vegan"> Vegan</div>
+                <div class="checkbox-item"><input type="checkbox" id="tag-lowcarb" value="Low-Carb"> Low-Carb</div>
+                <div class="checkbox-item"><input type="checkbox" id="tag-schnell" value="Schnell (< 30min)"> Schnell (< 30min)</div>
+                <div class="checkbox-item"><input type="checkbox" id="tag-reift" value="Reift nach"> "Reift nach"</div>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="calories-target">Kalorien-Ziel (ca.)</label>
+            <input type="number" id="calories-target" value="500">
+        </div>
+        <button id="generate-btn" class="button-primary">Rezept-Idee generieren</button>
+    </div>
+
+    <div id="loader">
+        <p>Gemini denkt nach...</p>
+        <!-- Hier könnte ein Spinner-Icon rein -->
+    </div>
+
+    <!-- Editor-Bereich (wird per JS sichtbar gemacht) -->
+    <div id="editor-section" class="container">
+        <h2>2. Vorschau & Bearbeitung</h2>
+        <div class="form-group">
+            <label for="edit-title">Titel</label>
+            <input type="text" id="edit-title">
+        </div>
+        <div class="form-group">
+            <label for="edit-art">Art</label>
+            <select id="edit-art">
+                <option value="Mahlzeit">Mahlzeit</option>
+                <option value="Frühstück">Frühstück</option>
+                <option value="Snack">Snack</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="edit-haltbarkeit">Haltbarkeit (Tage)</label>
+            <input type="number" id="edit-haltbarkeit">
+        </div>
+        <div class="form-group">
+            <label for="edit-zubereitung">Zubereitung</label>
+            <textarea id="edit-zubereitung"></textarea>
+        </div>
+        <div class="form-group">
+            <label>Zutaten</label>
+            <div id="ingredients-container">
+                <!-- Zutaten werden hier per JS eingefügt -->
+            </div>
+        </div>
+        <button id="check-nutrition-btn" class="button-secondary">Nährwerte prüfen & einfügen</button>
+        <div id="nutrition-results">
+            <!-- Nährwerte werden hier angezeigt -->
+        </div>
+        <hr style="margin: 20px 0;">
+        <button id="save-btn" class="button-save">Rezept in Datenbank speichern</button>
+        <button id="regenerate-btn" class="button-secondary">Neue Idee generieren</button>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script src="/__/firebase/8.10.1/firebase-app.js"></script>
+    <script src="/__/firebase/8.10.1/firebase-firestore.js"></script>
+    <script src="/__/firebase/8.10.1/firebase-functions.js"></script>
+    <script src="/__/firebase/8.10.1/firebase-auth.js"></script>
+    <script src="/__/firebase/init.js"></script>
+
+    <!-- Unser Generator-Skript -->
+    <script src="recipe-generator.js"></script>
+</body>
+</html>
+
