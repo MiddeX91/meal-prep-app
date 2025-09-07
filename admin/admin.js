@@ -14,8 +14,6 @@ function setButtonsDisabled(disabled) {
 }
 
 // === EVENT LISTENER ===
-
-// Event Listener nur für die Dateiauswahl
 fileInput.addEventListener('change', (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -23,68 +21,43 @@ fileInput.addEventListener('change', (event) => {
     reader.onload = (e) => {
         try {
             dataToUpload = JSON.parse(e.target.result);
-            statusDiv.textContent = `${dataToUpload.length} Einträge in Datei gefunden. Bereit.`;
-            uploadButton.disabled = false; // Nur der Upload-Button wird aktiviert
+            statusDiv.textContent = `${dataToUpload.length} Einträge in Datei gefunden. Bereit zum Sammeln.`;
+            enrichLexikonButton.disabled = false; // Aktiviere den Sammel-Button
         } catch (error) {
             statusDiv.textContent = `Fehler: Ungültige JSON-Datei.\n${error}`;
-            uploadButton.disabled = true;
         }
     };
     reader.readAsText(file);
 });
 
-// Event Listener für "Neue Rezepte hochladen"
-uploadButton.addEventListener('click', () => {
+// "Lexikon anreichern" ist jetzt unser Haupt-Button zum Sammeln der Rohdaten
+enrichLexikonButton.addEventListener('click', () => {
     if (dataToUpload.length === 0) {
-        alert("Bitte zuerst eine JSON-Datei mit Rezepten auswählen.");
+        alert("Bitte zuerst eine JSON-Datei mit Zutaten auswählen.");
         return;
     }
-    // HIER KOMMT DIE LOGIK FÜR DEN REZEPT-UPLOAD
-    alert("Rezept-Upload-Funktion noch nicht implementiert.");
+    processRawDataUpload(dataToUpload);
 });
 
-
-// Event Listener für ""Sonstiges" aufräumen"
-fixMiscButton.addEventListener('click', () => {
-    processMaintenance('Sonstiges');
-});
-
-// Event Listener für "Lexikon mit Nährwerten anreichern"
-enrichLexikonButton.addEventListener('click', () => {
-    processMaintenance('anreichern');
-});
+// Die anderen Buttons sind vorerst deaktiviert
+uploadButton.addEventListener('click', () => alert("Diese Funktion ist deaktiviert. Bitte 'Lexikon anreichern' verwenden, um Rohdaten zu sammeln."));
+fixMiscButton.addEventListener('click', () => alert("Diese Funktion ist deaktiviert. Bitte 'Lexikon anreichern' verwenden, um Rohdaten zu sammeln."));
 
 
 /**
- * Zentrale Funktion für Wartungsarbeiten ("Sonstiges" & "Anreichern").
- * Diese Funktion benötigt KEINE hochgeladene Datei.
+ * Hauptfunktion: Sammelt Rohdaten für eine Liste von Zutaten und speichert sie.
  */
-async function processMaintenance(mode) {
-    const modeText = mode === 'Sonstiges' ? '"Sonstiges" aufräumen' : 'Lexikon anreichern';
-    statusDiv.textContent = `Starte Prozess: "${modeText}"...\nSuche nach relevanten Einträgen...`;
+async function processRawDataUpload(items) {
+    statusDiv.textContent = `Starte Rohdaten-Sammelprozess für ${items.length} Zutaten...`;
     setButtonsDisabled(true);
 
     try {
-        const snapshot = await db.collection('zutatenLexikon').get();
-        let itemsToProcess = [];
-
-        if (mode === 'Sonstiges') {
-            itemsToProcess = snapshot.docs.map(doc => doc.data()).filter(item => item.kategorie === 'Sonstiges');
-        } else { // Modus 'anreichern'
-            itemsToProcess = snapshot.docs.map(doc => doc.data()).filter(item => !item.nährwerte_pro_1_g || item.nährwerte_pro_100g.kalorien === 0);
+        for (const item of items) {
+            if (item && item.name) {
+                await fetchAndStoreRawData(item.name);
+            }
         }
-
-        if (itemsToProcess.length === 0) {
-            statusDiv.textContent += '\nKeine relevanten Einträge gefunden.';
-            setButtonsDisabled(false);
-            return;
-        }
-
-        statusDiv.textContent += `\n${itemsToProcess.length} Einträge gefunden. Starte Verarbeitung...`;
-        for (const item of itemsToProcess.slice(0, 3)) { // Testmodus: Nur die ersten 3
-            await processSingleIngredient(item.name);
-        }
-        statusDiv.textContent += `\n\n🎉 Testlauf für "${modeText}" abgeschlossen!`;
+        statusDiv.textContent += `\n\n🎉 Datensammlung abgeschlossen! Prüfe die 'zutatenLexikonRAW' Datenbank.`;
 
     } catch (error) {
         statusDiv.textContent += `\n❌ Schwerwiegender Fehler: ${error.message}`;
@@ -94,35 +67,31 @@ async function processMaintenance(mode) {
 }
 
 /**
- * Ruft das Backend für EINE Zutat auf und speichert die Daten.
+ * Ruft das Backend für EINE Zutat auf und speichert die Roh-Antwort.
  */
-async function processSingleIngredient(ingredientName) {
+async function fetchAndStoreRawData(ingredientName) {
     try {
-        statusDiv.textContent += `\n- Verarbeite "${ingredientName}"...`;
+        statusDiv.textContent += `\n- Frage Backend nach Rohdaten für "${ingredientName}"...`;
         
         const categorizeFunction = firebase.functions().httpsCallable('categorizeIngredient');
         const response = await categorizeFunction({ ingredientName: ingredientName });
 
-        const { fullData, rawEdamamData } = response.data;
-        if (!fullData) {
-            throw new Error("Backend hat keine 'fullData' zurückgegeben.");
-        }
-        
+        const { rawGeminiCategory, rawGeminiTranslation, rawEdamamData } = response.data;
         const docId = ingredientName.toLowerCase().replace(/\//g, '-');
 
-        // Rohe Antwort für die Fehlersuche archivieren
+        // --- Rohe Antwort archivieren ---
         await db.collection('zutatenLexikonRAW').doc(docId).set({
             name: ingredientName,
             retrievedAt: new Date(),
-            rawData: rawEdamamData || { error: "Keine Rohdaten vom Backend erhalten." }
+            geminiCategoryResponse: rawGeminiCategory || { error: "Keine Rohdaten vom Backend erhalten." },
+            geminiTranslateResponse: rawGeminiTranslation || { error: "Keine Rohdaten vom Backend erhalten." },
+            edamamResponse: rawEdamamData || { error: "Keine Rohdaten vom Backend erhalten." }
         }, { merge: true });
         
-        // Saubere, verarbeitete Daten im Haupt-Lexikon speichern
-        await db.collection('zutatenLexikon').doc(docId).set(fullData, { merge: true });
-        statusDiv.textContent += ` -> OK`;
+        statusDiv.textContent += ` -> OK, Rohdaten gespeichert.`;
 
     } catch (error) {
-        console.error(`[Admin] Fehler bei "${ingredientName}":`, error);
+        console.error(`[Admin] Fehler bei der Verarbeitung von "${ingredientName}":`, error);
         statusDiv.textContent += ` -> FEHLER: ${error.message}`;
     }
     await new Promise(resolve => setTimeout(resolve, 4000));
