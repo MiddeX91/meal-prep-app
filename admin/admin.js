@@ -155,7 +155,7 @@ async function processRecipeUpload(recipes) {
 }
 async function processNewIngredients(ingredients) {
      statusDiv.textContent = 'Upload neuer Zutaten wird gestartet...';
-     // Hier kommt die Logik zum Abarbeiten einer Zutaten-Liste rein
+     // Hier kommt die Logik zum Abarbeiten einer Zutaten-Liste reindd
      alert('Upload neuer Zutaten noch nicht implementiert.');
 }
 
