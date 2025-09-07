@@ -4,7 +4,7 @@ const uploadButton = document.getElementById('upload-button');
 const fixMiscButton = document.getElementById('fix-misc-btn');
 const enrichLexikonButton = document.getElementById('enrich-lexikon-btn');
 const statusDiv = document.getElementById('status');
-let dataFromFile = []; // Speichert die Daten aus der ausgewählten Datei
+let dataFromFile = [];
 
 // === HILFSFUNKTIONEN ===
 function setButtonsDisabled(disabled) {
@@ -13,9 +13,9 @@ function setButtonsDisabled(disabled) {
     enrichLexikonButton.disabled = disabled;
 }
 
-// === EVENT LISTENER ===
+const delay = ms => new Promise(res => setTimeout(res, ms));
 
-// Event Listener nur für die Dateiauswahl. Aktiviert nur den Upload-Button.
+// === EVENT LISTENER ===
 fileInput.addEventListener('change', (event) => {
     const file = event.target.files[0];
     if (!file) {
@@ -26,8 +26,8 @@ fileInput.addEventListener('change', (event) => {
     reader.onload = (e) => {
         try {
             dataFromFile = JSON.parse(e.target.result);
-            statusDiv.textContent = `${dataFromFile.length} Einträge in Datei gefunden. Bereit zum Upload.`;
-            uploadButton.disabled = false; // Nur der Upload-Button wird aktiviert
+            statusDiv.textContent = `${dataFromFile.length} Einträge in Datei gefunden. Bereit zum Verarbeiten.`;
+            uploadButton.disabled = false;
         } catch (error) {
             statusDiv.textContent = `Fehler: Ungültige JSON-Datei.\n${error}`;
             uploadButton.disabled = true;
@@ -36,38 +36,22 @@ fileInput.addEventListener('change', (event) => {
     reader.readAsText(file);
 });
 
-// Event Listener für "Neue Rezepte/Zutaten hochladen"
-// Dieser Button ist der einzige, der die hochgeladene Datei verwendet.
-uploadButton.addEventListener('click', () => {
-    if (dataFromFile.length === 0) {
-        alert("Bitte zuerst eine gültige JSON-Datei auswählen.");
-        return;
-    }
-    // Wählt den richtigen Prozess basierend auf dem Datei-Inhalt
-    if (dataFromFile[0].title) { // Annahme: Es ist eine Rezept-Datei
-        processRecipeUpload(dataFromFile);
-    } else { // Annahme: Es ist eine Zutaten-Datei
-        processNewIngredients(dataFromFile);
-    }
+// "Lexikon anreichern" ist jetzt unser Haupt-Button zum Sammeln der Rohdaten
+enrichLexikonButton.addEventListener('click', () => {
+    processMaintenance('anreichern');
 });
 
-
-// Event Listener für ""Sonstiges" aufräumen"
-// Diese Funktion benötigt KEINE Datei.
 fixMiscButton.addEventListener('click', () => {
     processMaintenance('Sonstiges');
 });
 
-// Event Listener für "Lexikon mit Nährwerten anreichern"
-// Diese Funktion benötigt KEINE Datei.
-enrichLexikonButton.addEventListener('click', () => {
-    processMaintenance('anreichern');
+uploadButton.addEventListener('click', () => {
+     alert("Dieser Button ist für das Hochladen von kompletten Rezepten vorgesehen. Diese Funktion wird später implementiert.");
 });
 
 
 /**
  * Hauptfunktion für Wartungsarbeiten ("Sonstiges" & "Anreichern").
- * Holt sich die Arbeitsliste direkt aus Firestore.
  */
 async function processMaintenance(mode) {
     const modeText = mode === 'Sonstiges' ? '"Sonstiges" aufräumen' : 'Lexikon anreichern';
@@ -96,11 +80,10 @@ async function processMaintenance(mode) {
 
         statusDiv.textContent += `\n${itemsToProcess.length} Einträge gefunden. Starte Verarbeitung...`;
         
-        // Wir verarbeiten im Testlauf nur die ersten 3
-        for (const item of itemsToProcess.slice(0, 3)) {
+        for (const item of itemsToProcess) {
             await processSingleIngredient(item.name);
         }
-        statusDiv.textContent += `\n\n🎉 Testlauf für "${modeText}" abgeschlossen! ${itemsToProcess.length - 3} weitere Einträge verbleiben.`;
+        statusDiv.textContent += `\n\n🎉 Prozess für "${modeText}" abgeschlossen!`;
 
     } catch (error) {
         statusDiv.textContent += `\n❌ Schwerwiegender Fehler: ${error.message}`;
@@ -109,53 +92,51 @@ async function processMaintenance(mode) {
     }
 }
 
+
 /**
  * Ruft das Backend für EINE Zutat auf und speichert die Daten.
+ * Enthält jetzt die intelligente Retry-Logik.
  */
 async function processSingleIngredient(ingredientName) {
-    try {
-        statusDiv.textContent += `\n- Verarbeite "${ingredientName}"...`;
-        
-        const categorizeFunction = firebase.functions().httpsCallable('categorizeIngredient');
-        const response = await categorizeFunction({ ingredientName: ingredientName });
-        
-        console.log(`[Admin] Rohe Antwort für "${ingredientName}":`, response.data);
-        const { fullData, rawEdamamData } = response.data;
+    const MAX_RETRIES = 6;
+    const RETRY_DELAY = 10000; // 10 Sekunden
 
-        if (!fullData) {
-            throw new Error("Backend hat keine 'fullData' zurückgegeben.");
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            statusDiv.textContent += `\n- Verarbeite "${ingredientName}" (Versuch ${attempt}/${MAX_RETRIES})...`;
+            
+            const categorizeFunction = firebase.functions().httpsCallable('categorizeIngredient');
+            const response = await categorizeFunction({ ingredientName: ingredientName });
+            
+            console.log(`[Admin] Rohe Antwort für "${ingredientName}":`, response.data);
+            const { rawEdamamData } = response.data;
+
+            if (!rawEdamamData) {
+                throw new Error("Backend hat keine 'rawEdamamData' zurückgegeben.");
+            }
+            
+            const docId = ingredientName.toLowerCase().replace(/\//g, '-');
+
+            await db.collection('zutatenLexikonRAW').doc(docId).set({
+                name: ingredientName,
+                retrievedAt: new Date(),
+                rawData: rawEdamamData
+            }, { merge: true });
+            
+            statusDiv.textContent += ` -> OK`;
+            return; // Erfolg, beende die Funktion für diese Zutat
+
+        } catch (error) {
+            console.error(`[Admin] Fehler bei "${ingredientName}", Versuch ${attempt}:`, error);
+            statusDiv.textContent += ` -> FEHLER: ${error.message}`;
+
+            if (attempt < MAX_RETRIES) {
+                statusDiv.textContent += `. Warte ${RETRY_DELAY / 1000}s...`;
+                await delay(RETRY_DELAY);
+            } else {
+                statusDiv.textContent += `. Maximalversuche erreicht. Überspringe diese Zutat.`;
+            }
         }
-        
-        const docId = ingredientName.toLowerCase().replace(/\//g, '-');
-
-        // Rohe Antwort für die Fehlersuche archivieren
-        await db.collection('zutatenLexikonRAW').doc(docId).set({
-            name: ingredientName,
-            retrievedAt: new Date(),
-            rawData: rawEdamamData || { error: "Keine Rohdaten vom Backend erhalten." }
-        }, { merge: true });
-        
-        // Saubere, verarbeitete Daten im Haupt-Lexikon speichern
-        await db.collection('zutatenLexikon').doc(docId).set(fullData, { merge: true });
-        
-        statusDiv.textContent += ` -> OK`;
-
-    } catch (error) {
-        console.error(`[Admin] Fehler bei "${ingredientName}":`, error);
-        statusDiv.textContent += ` -> FEHLER: ${error.message}`;
     }
-    await new Promise(resolve => setTimeout(resolve, 4000));
-}
-
-// Platzhalter-Funktionen für den Upload-Button
-async function processRecipeUpload(recipes) {
-    statusDiv.textContent = 'Rezept-Upload wird gestartet...';
-    // Hier kommt später die Logik zum Hochladen von Rezepten rein
-    alert('Rezept-Upload noch nicht implementiert.');
-}
-async function processNewIngredients(ingredients) {
-     statusDiv.textContent = 'Upload neuer Zutaten wird gestartet...';
-     // Hier kommt die Logik zum Abarbeiten einer Zutaten-Liste reindd
-     alert('Upload neuer Zutaten noch nicht implementiert.');
 }
 
