@@ -1,13 +1,15 @@
 document.addEventListener('DOMContentLoaded', () => {
 
+    // === FIREBASE-VERKNÜPFUNG ERSTELLEN ===
+    // HINWEIS: Firebase selbst wird durch /__/firebase/init.js initialisiert.
+    const db = firebase.firestore();
+
     // === DOM-ELEMENTE ===
-    // Werden jetzt sicher gefunden, da wir auf das Laden der Seite warten.
     const fixMiscButton = document.getElementById('fix-misc-btn');
     const enrichLexikonButton = document.getElementById('enrich-lexikon-btn');
     const processRawButton = document.getElementById('process-raw-btn');
     const calculateNutritionButton = document.getElementById('calculate-nutrition-btn');
     const statusDiv = document.getElementById('status');
-    const db = firebase.firestore();
 
     // === HILFSFUNKTIONEN ===
     function setButtonsDisabled(disabled) {
@@ -29,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // =================================================================
     // FUNKTIONEN FÜR DATENBANK-WARTUNG (ZUTATEN)
     // =================================================================
+
 
 async function processRawData() {
     statusDiv.textContent = 'Starte Verarbeitung der RAW-Daten...\nLese alle Dokumente aus zutatenLexikonRAW...';
@@ -143,7 +146,7 @@ async function processMaintenance(mode) {
 }
 
 
-    // =================================================================
+   // =================================================================
     // FUNKTION FÜR REZEPT-MANAGEMENT
     // =================================================================
 
@@ -157,7 +160,6 @@ async function processMaintenance(mode) {
             const lexikonSnapshot = await db.collection('zutatenLexikon').get();
             const lexikonMap = new Map();
             lexikonSnapshot.forEach(doc => {
-                // Speichere unter einem normalisierten Key (kleingeschrieben)
                 lexikonMap.set(doc.data().name.toLowerCase(), doc.data());
             });
             statusDiv.textContent += ` ✅ (${lexikonMap.size} Einträge geladen)\n`;
@@ -167,11 +169,10 @@ async function processMaintenance(mode) {
             const recipesSnapshot = await db.collection('rezepte').get();
             statusDiv.textContent += ` ✅ (${recipesSnapshot.size} Rezepte gefunden)\n\n`;
             
-            // 3. Bereite einen Batch-Write vor, um alle Änderungen auf einmal zu speichern
             const batch = db.batch();
             let recipesUpdatedCount = 0;
+            let ingredientsCreatedCount = 0;
 
-            // 4. Gehe jedes Rezept durch und berechne die Nährwerte
             for (const recipeDoc of recipesSnapshot.docs) {
                 const recipe = recipeDoc.data();
                 statusDiv.textContent += `- Verarbeite "${recipe.title}"...`;
@@ -186,9 +187,11 @@ async function processMaintenance(mode) {
                 let totalCarbs = 0;
                 let totalFat = 0;
                 let missingIngredients = [];
+                let allIngredientsFound = true;
 
                 for (const ingredient of recipe.ingredients) {
-                    const lexikonData = lexikonMap.get(ingredient.name.toLowerCase());
+                    const ingredientNameKey = ingredient.name.toLowerCase();
+                    const lexikonData = lexikonMap.get(ingredientNameKey);
 
                     if (lexikonData && lexikonData.kalorien_pro_100g !== undefined) {
                         const factor = (ingredient.amount || 0) / 100;
@@ -198,13 +201,11 @@ async function processMaintenance(mode) {
                         totalFat += (lexikonData.nährwerte_pro_100g?.fat || 0) * factor;
                     } else {
                         missingIngredients.push(ingredient.name);
+                        allIngredientsFound = false;
                     }
                 }
 
-                if (missingIngredients.length > 0) {
-                    statusDiv.textContent += ` -> ❌ FEHLER: Zutat(en) nicht im Lexikon gefunden: ${missingIngredients.join(', ')}\n`;
-                } else {
-                    // Füge die Update-Operation zum Batch hinzu
+                if (allIngredientsFound) {
                     const recipeRef = db.collection('rezepte').doc(recipeDoc.id);
                     batch.update(recipeRef, {
                         basis_kalorien: Math.round(totalKcal),
@@ -216,17 +217,33 @@ async function processMaintenance(mode) {
                     });
                     recipesUpdatedCount++;
                     statusDiv.textContent += ` -> ✅ Berechnet: ${Math.round(totalKcal)} kcal\n`;
+                } else {
+                    // NEU: Logik zum Anlegen fehlender Zutaten
+                    statusDiv.textContent += ` -> ⚠️ Rezept übersprungen. Folgende Zutaten fehlen im Lexikon:\n`;
+                    for (const missingName of missingIngredients) {
+                        const missingNameKey = missingName.toLowerCase();
+                        // Prüfen, ob wir es nicht schon in diesem Durchgang hinzugefügt haben
+                        if (!lexikonMap.has(missingNameKey)) {
+                            const docId = missingNameKey.replace(/\//g, '-');
+                            const newIngredientRef = db.collection('zutatenLexikon').doc(docId);
+                            batch.set(newIngredientRef, { name: missingName });
+                            
+                            // Füge es zur Map hinzu, um Duplikate im selben Batch zu vermeiden
+                            lexikonMap.set(missingNameKey, { name: missingName });
+                            ingredientsCreatedCount++;
+                            statusDiv.textContent += `    -> ➕ Lege Platzhalter für "${missingName}" an.\n`;
+                        }
+                    }
                 }
             }
 
-            // 5. Führe den Batch-Write aus
-            if (recipesUpdatedCount > 0) {
-                statusDiv.textContent += `\nSpeichere Änderungen für ${recipesUpdatedCount} Rezepte...`;
+            if (recipesUpdatedCount > 0 || ingredientsCreatedCount > 0) {
+                statusDiv.textContent += `\nSpeichere Änderungen... (${recipesUpdatedCount} Rezepte, ${ingredientsCreatedCount} neue Zutaten)`;
                 await batch.commit();
                 statusDiv.textContent += ' ✅\n';
             }
 
-            statusDiv.textContent += `\n🎉 Prozess abgeschlossen! ${recipesUpdatedCount} von ${recipesSnapshot.size} Rezepten wurden aktualisiert.`;
+            statusDiv.textContent += `\n🎉 Prozess abgeschlossen!`;
 
         } catch (error) {
             statusDiv.textContent += `\n\n❌ Ein schwerwiegender Fehler ist aufgetreten: ${error.message}`;
@@ -237,9 +254,4 @@ async function processMaintenance(mode) {
     }
 
 }); // Ende des DOMContentLoaded-Listeners
-
-
-
-
-
 
