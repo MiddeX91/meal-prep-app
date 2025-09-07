@@ -4,7 +4,6 @@ import { capitalize } from './utils.js';
 
 
 // Firebase initialisieren und die 'db'-Variable erstellen
-const app = firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
 // === GLOBALE VARIABLEN === Test
