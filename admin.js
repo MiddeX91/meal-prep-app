@@ -43,33 +43,48 @@ document.addEventListener('DOMContentLoaded', async () => {
     processRawButton.addEventListener('click', () => statusDiv.textContent = 'Diese Funktion ist noch nicht implementiert.');
 
     // =================================================================
-    // NEU: EINHEITEN-UMRECHNUNG
+    // VERBESSERTE EINHEITEN-UMRECHNUNG
     // =================================================================
     function getGramAmount(ingredient) {
         const amount = ingredient.amount || 0;
-        if (!ingredient.unit) return amount; // Wenn keine Einheit da ist, nehmen wir an, es sind Gramm
+        if (!ingredient.unit) return amount;
         
-        const unit = ingredient.unit.toLowerCase();
+        const unit = ingredient.unit.toLowerCase().trim();
         const name = ingredient.name.toLowerCase();
 
-        if (unit === 'g' || unit === 'ml') { // Behandle ml und g als 1:1 für die meisten Kochanwendungen
+        // Behandle ml und g als 1:1
+        if (unit === 'g' || unit === 'ml') {
             return amount;
+        }
+
+        // Behandle Einheiten ohne Nährwert als 0g
+        const zeroValueUnits = ['prise', 'prisen'];
+        if (zeroValueUnits.includes(unit)) {
+            return 0;
         }
 
         const conversionMap = {
             'el': { default: 15, 'öl': 10, 'mehl': 8, 'zucker': 15, 'salz': 18, 'honig': 20, 'haferflocken': 8, 'kakao': 8 },
             'tl': { default: 5, 'öl': 4, 'mehl': 3, 'zucker': 5, 'salz': 6, 'honig': 7, 'backpulver': 4 },
-            'stück': { default: 120, 'ei': 55, 'zwiebel': 100, 'knoblauchzehe': 5, 'karotte': 80 }
+            'stück': { default: 120, 'ei': 55, 'eier': 55, 'zwiebel': 100, 'knoblauchzehe': 5, 'karotte': 80, 'paprika': 150, 'sellerie': 40 },
+            'cm': { default: 5, 'ingwer': 5 },
+            'handvoll': { default: 15, 'petersilie': 10, 'spinat': 25, 'nüsse': 30 }
         };
+        
+        // Aliase für Einheiten
+        let targetUnit = unit;
+        if (['stk', 'stange', 'stangen'].includes(unit)) {
+            targetUnit = 'stück';
+        }
 
-        if (conversionMap[unit]) {
-            const unitConversions = conversionMap[unit];
+        if (conversionMap[targetUnit]) {
+            const unitConversions = conversionMap[targetUnit];
             for (const key in unitConversions) {
                 if (key !== 'default' && name.includes(key)) {
                     return amount * unitConversions[key];
                 }
             }
-            return amount * unitConversions.default; // Fallback auf einen generischen Wert
+            return amount * unitConversions.default; // Fallback
         }
 
         return null; // Kennzeichnet eine unbekannte Einheit
@@ -107,6 +122,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (missingIngredients.size === 0) {
                 statusDiv.textContent += '\n🎉 Alle Zutaten aus den Rezepten sind bereits im Lexikon vorhanden!';
+                setButtonsDisabled(false);
                 return;
             }
 
@@ -150,6 +166,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (ingredientsToEnrich.length === 0) {
                 statusDiv.textContent += '🎉 Alle Lexikon-Einträge sind bereits vollständig!';
+                setButtonsDisabled(false);
                 return;
             }
 
@@ -222,11 +239,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // SCHRITT 3: NÄHRWERTE BERECHNEN (MIT EINHEITEN-UMRECHNUNG)
     // =================================================================
     async function calculateAndSetRecipeNutrition() {
+        // ... (Dieser Code bleibt unverändert)
         statusDiv.textContent = 'Starte Prozess: Nährwerte für Rezepte berechnen...\n';
         setButtonsDisabled(true);
 
         try {
-            // ... (Laden von Lexikon und Rezepten bleibt gleich)
             statusDiv.textContent += 'Lade Zutatenlexikon...';
             const lexikonSnapshot = await db.collection('zutatenLexikon').get();
             const lexikonMap = new Map();
@@ -320,6 +337,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // DEBUGGING-WERKZEUG (MIT EINHEITEN-UMRECHNUNG)
     // =================================================================
     async function debugRecipeNutrition() {
+        // ... (Dieser Code bleibt unverändert)
         const recipeName = prompt("Welchen genauen Rezept-Titel möchtest du debuggen?");
         if (!recipeName) return;
 
@@ -327,7 +345,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         setButtonsDisabled(true);
 
         try {
-            // ... (Laden von Lexikon und Rezept bleibt gleich)
             const lexikonSnapshot = await db.collection('zutatenLexikon').get();
             const lexikonMap = new Map();
             lexikonSnapshot.forEach(doc => {
@@ -339,6 +356,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (querySnapshot.empty) {
                 statusDiv.textContent = `❌ Rezept mit dem Titel "${recipeName}" nicht gefunden.`;
+                setButtonsDisabled(false);
                 return;
             }
 
