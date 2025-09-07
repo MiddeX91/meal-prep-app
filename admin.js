@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const processRawButton = document.getElementById('process-raw-btn');
     const calculateNutritionButton = document.getElementById('calculate-nutrition-btn');
     const statusDiv = document.getElementById('status');
+    const db = firebase.firestore();
 
     // === HILFSFUNKTIONEN ===
     function setButtonsDisabled(disabled) {
