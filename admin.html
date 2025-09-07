@@ -3,43 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin - Meal-Prep-Planer</title>
+    <title>Admin-Panel</title>
+    <!-- CSS-Stile bleiben gleich -->
     <style>
-        body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; }
-        h1, h2 { text-align: center; }
-        .section { border: 1px solid #ddd; padding: 20px; margin-bottom: 30px; border-radius: 8px; }
+        body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; }
+        h1 { text-align: center; }
         button { font-size: 1rem; padding: 10px 15px; margin: 5px; cursor: pointer; border-radius: 5px; border: 1px solid #ccc; }
-        button:disabled { cursor: not-allowed; background-color: #eee; }
-        .button-primary { background-color: #007bff; color: white; border-color: #007bff;}
-        .button-secondary { background-color: #6c757d; color: white; border-color: #6c757d;}
-        #status { margin-top: 20px; font-family: monospace; white-space: pre-wrap; background: #f4f4f4; padding: 15px; border-radius: 4px; border: 1px solid #eee; min-height: 100px; }
+        #status { margin-top: 20px; font-family: monospace; white-space: pre-wrap; background: #f4f4f4; padding: 10px; border-radius: 4px; min-height: 50px;}
+        .button-primary { background-color: #4CAF50; color: white; border-color: #4CAF50;}
+        .button-secondary { background-color: #e0e0e0; }
+        .button-danger { background-color: #f4b6b6; border-color: #d38d8d; }
+        .button-group { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
+        h4 { margin-top: 0; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px;}
     </style>
 </head>
 <body>
     <h1>Admin-Panel</h1>
 
-    <div class="section">
-        <h2>Datenbank-Wartung</h2>
-        <p>Diese Aktionen helfen, die Daten im `zutatenLexikon` zu pflegen.</p>
-        <button id="fix-misc-btn" class="button-secondary">"Sonstiges" aufräumen</button>
-        <button id="enrich-lexikon-btn" class="button-secondary">Lexikon anreichern</button>
-        <button id="process-raw-btn" class="button-secondary">RAW-Daten verarbeiten</button>
+    <div class="button-group">
+        <h4>Schritt 1: Inventur</h4>
+        <button id="inventory-btn" class="button-primary">Fehlende Zutaten im Lexikon anlegen</button>
     </div>
 
-    <div class="section">
-        <h2>Rezept-Management</h2>
-        <p>Berechnet die Nährwerte für alle bestehenden Rezepte neu, basierend auf den Daten im `zutatenLexikon`.</p>
-        <button id="calculate-nutrition-btn" class="button-primary">Nährwerte für alle Rezepte berechnen</button>
+    <div class="button-group">
+        <h4>Schritt 2: Daten anreichern</h4>
+        <button id="enrich-lexikon-btn" class="button-secondary">Lexikon mit Nährwerten anreichern</button>
+        <button id="process-raw-btn" class="button-secondary">RAW-Daten verarbeiten</button>
+    </div>
+    
+    <div class="button-group">
+        <h4>Schritt 3: Rezepte aktualisieren</h4>
+        <button id="calculate-nutrition-btn" class="button-danger">Nährwerte für alle Rezepte berechnen</button>
     </div>
 
     <div id="status">Warte auf eine Aktion...</div>
 
-    <!-- Firebase -->
+    <!-- Firebase SDKs -->
     <script src="/__/firebase/8.10.1/firebase-app.js"></script>
     <script src="/__/firebase/8.10.1/firebase-firestore.js"></script>
     <script src="/__/firebase/8.10.1/firebase-functions.js"></script>
+    <script src="/__/firebase/8.10.1/firebase-auth.js"></script>
+    
+    <!-- Initialisiere Firebase -->
     <script src="/__/firebase/init.js"></script>
 
+    <!-- Dein Admin-Skript -->
     <script src="admin.js"></script>
 </body>
 </html>

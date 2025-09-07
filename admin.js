@@ -1,161 +1,202 @@
-document.addEventListener('DOMContentLoaded', () => {
-
-    // === FIREBASE-VERKNÜPFUNG ERSTELLEN ===
-    // HINWEIS: Firebase selbst wird durch /__/firebase/init.js initialisiert.
-    const db = firebase.firestore();
+document.addEventListener('DOMContentLoaded', async () => {
 
     // === DOM-ELEMENTE ===
-    const fixMiscButton = document.getElementById('fix-misc-btn');
+    const statusDiv = document.getElementById('status');
+    statusDiv.textContent = 'Initialisiere Firebase und melde an...';
+
+    // === FIREBASE-VERKNÜPFUNG & AUTHENTIFIZIERUNG ===
+    try {
+        await firebase.auth().signInAnonymously();
+        statusDiv.textContent = '✅ Anonym angemeldet. Bereit für Aktionen.';
+    } catch (error) {
+        statusDiv.textContent = `❌ Fehler bei der anonymen Anmeldung: ${error.message}`;
+        console.error("Anmeldefehler:", error);
+        return;
+    }
+    
+    const db = firebase.firestore();
+    const functions = firebase.functions();
+    
+    // === DOM-ELEMENTE (Buttons) ===
+    const inventoryButton = document.getElementById('inventory-btn');
     const enrichLexikonButton = document.getElementById('enrich-lexikon-btn');
     const processRawButton = document.getElementById('process-raw-btn');
     const calculateNutritionButton = document.getElementById('calculate-nutrition-btn');
-    const statusDiv = document.getElementById('status');
 
     // === HILFSFUNKTIONEN ===
     function setButtonsDisabled(disabled) {
-        fixMiscButton.disabled = disabled;
+        inventoryButton.disabled = disabled;
         enrichLexikonButton.disabled = disabled;
         processRawButton.disabled = disabled;
         calculateNutritionButton.disabled = disabled;
     }
-
+    
     const delay = ms => new Promise(res => setTimeout(res, ms));
 
     // === EVENT LISTENER ===
-    enrichLexikonButton.addEventListener('click', () => processMaintenance('anreichern'));
-    fixMiscButton.addEventListener('click', () => processMaintenance('Sonstiges'));
-    processRawButton.addEventListener('click', processRawData);
+    inventoryButton.addEventListener('click', findAndCreateMissingIngredients);
+    enrichLexikonButton.addEventListener('click', enrichLexikon);
     calculateNutritionButton.addEventListener('click', calculateAndSetRecipeNutrition);
+    processRawButton.addEventListener('click', () => statusDiv.textContent = 'Diese Funktion ist noch nicht implementiert.');
 
 
     // =================================================================
-    // FUNKTIONEN FÜR DATENBANK-WARTUNG (ZUTATEN)
+    // SCHRITT 1: INVENTUR
     // =================================================================
+    async function findAndCreateMissingIngredients() {
+        // Diese Funktion bleibt unverändert
+        statusDiv.textContent = 'Starte Inventur: Suche nach fehlenden Zutaten...\n';
+        setButtonsDisabled(true);
 
+        try {
+            const [lexikonSnapshot, recipesSnapshot] = await Promise.all([
+                db.collection('zutatenLexikon').get(),
+                db.collection('rezepte').get()
+            ]);
+            
+            const lexikonMap = new Map();
+            lexikonSnapshot.forEach(doc => {
+                lexikonMap.set(doc.data().name.toLowerCase(), true);
+            });
+            statusDiv.textContent += ` ✅ (${lexikonMap.size} Lexikon-Einträge, ${recipesSnapshot.size} Rezepte)\n`;
 
-async function processRawData() {
-    statusDiv.textContent = 'Starte Verarbeitung der RAW-Daten...\nLese alle Dokumente aus zutatenLexikonRAW...';
-    setButtonsDisabled(true);
-
-    try {
-        const snapshot = await db.collection('zutatenLexikonRAW').get();
-        if (snapshot.empty) {
-            statusDiv.textContent += '\nKeine Dokumente in zutatenLexikonRAW gefunden.';
-            setButtonsDisabled(false);
-            return;
-        }
-        
-        statusDiv.textContent += `\n${snapshot.size} Dokumente gefunden. Starte Extraktion...`;
-        
-        const batch = db.batch();
-        let processedCount = 0;
-
-        for (const doc of snapshot.docs) {
-            const data = doc.data();
-            const nutrients = data.rawData?.totalNutrients; // Sicherer Zugriff auf Nährwerte
-
-            // Überspringe, wenn keine Nährwertdaten vorhanden sind
-            if (!nutrients) {
-                statusDiv.textContent += `\n- WARNUNG: Kein 'totalNutrients' in "${data.name}". Überspringe.`;
-                continue;
+            const missingIngredients = new Set();
+            for (const recipeDoc of recipesSnapshot.docs) {
+                const ingredients = recipeDoc.data().ingredients || [];
+                for (const ingredient of ingredients) {
+                    if (!lexikonMap.has(ingredient.name.toLowerCase())) {
+                        missingIngredients.add(ingredient.name);
+                    }
+                }
             }
 
-            // Erstelle das saubere Objekt für die Zieldatenbank
-            const processedIngredient = {
-                name: data.name,
-                englisch: data.englisch,
-                kategorie: data.kategorie,
-                kalorien_pro_100g: Math.round(nutrients.ENERC_KCAL?.quantity ?? 0),
-                nährwerte_pro_100g: {
-                    carbs: Math.round(nutrients.CHOCDF?.quantity ?? 0),
-                    fat: Math.round(nutrients.FAT?.quantity ?? 0),
-                    protein: Math.round(nutrients.PROCNT?.quantity ?? 0)
-                }
-            };
-            
-            // Hol den Referenz-Pfad für das Zieldokument in zutatenLexikon
-            const targetDocId = data.name.toLowerCase().replace(/\//g, '-');
-            const targetDocRef = db.collection('zutatenLexikon').doc(targetDocId);
+            if (missingIngredients.size === 0) {
+                statusDiv.textContent += '\n🎉 Alle Zutaten aus den Rezepten sind bereits im Lexikon vorhanden!';
+                return;
+            }
 
-            // Füge die Update-Operation zum Batch hinzu
-            // { merge: true } ist wichtig, damit andere Felder nicht überschrieben werden!
-            batch.set(targetDocRef, processedIngredient, { merge: true });
-            
-            statusDiv.textContent += `\n- Verarbeite "${data.name}"... OK`;
-            processedCount++;
+            statusDiv.textContent += `\nGefunden: ${missingIngredients.size} neue Zutaten. Erstelle Platzhalter...\n`;
+            const batch = db.batch();
+            missingIngredients.forEach(name => {
+                const docId = name.toLowerCase().replace(/\//g, '-');
+                const newIngredientRef = db.collection('zutatenLexikon').doc(docId);
+                batch.set(newIngredientRef, { name: name });
+                statusDiv.textContent += ` -> ➕ ${name}\n`;
+            });
+
+            await batch.commit();
+            statusDiv.textContent += `\n✅ Erfolgreich ${missingIngredients.size} neue Platzhalter im Lexikon angelegt.`;
+
+        } catch (error) {
+            statusDiv.textContent += `\n\n❌ Ein schwerwiegender Fehler ist aufgetreten: ${error.message}`;
+            console.error(error);
+        } finally {
+            setButtonsDisabled(false);
         }
-        
-        statusDiv.textContent += `\n\nSchreibe ${processedCount} verarbeitete Dokumente in die Datenbank...`;
-        await batch.commit(); // Führt alle Schreibvorgänge auf einmal aus
-        
-        statusDiv.textContent += `\n🎉 Prozess abgeschlossen! ${processedCount} Dokumente wurden erfolgreich in 'zutatenLexikon' geschrieben/aktualisiert.`;
-
-    } catch (error) {
-        statusDiv.textContent += `\n\n❌ FEHLER bei der Verarbeitung: ${error.message}`;
-        console.error("Fehler beim Verarbeiten der RAW-Daten:", error);
-    } finally {
-        setButtonsDisabled(false);
     }
-}
 
-
-/**
- * Hauptfunktion für Wartungsarbeiten ("Sonstiges" & "Anreichern").
- */
-async function processMaintenance(mode) {
-    // Diese Funktion bleibt wie sie war.
-    const modeText = mode === 'Sonstiges' ? '"Sonstiges" aufräumen' : 'Lexikon anreichern';
-    statusDiv.textContent = `Starte Prozess: "${modeText}"...\nSuche nach relevanten Einträgen...`;
-    setButtonsDisabled(true);
-
-    try {
-        const snapshot = await db.collection('zutatenLexikon').get();
-        let itemsToProcess = [];
-
-        if (mode === 'Sonstiges') {
-            itemsToProcess = snapshot.docs
-                .map(doc => ({ id: doc.id, ...doc.data() }))
-                .filter(item => item.kategorie === 'Sonstiges');
-        } else {
-            itemsToProcess = snapshot.docs
-                .map(doc => ({ id: doc.id, ...doc.data() }))
-                .filter(item => !item.nährwerte_pro_100g);
-        }
-
-        if (itemsToProcess.length === 0) {
-            statusDiv.textContent += '\nKeine relevanten Einträge gefunden.';
-            return;
-        }
-
-        statusDiv.textContent += `\n${itemsToProcess.length} Einträge gefunden. Starte Verarbeitung...\n---`;
-        
-        let successCount = 0, errorCount = 0;
-        for (const item of itemsToProcess) {
-            const success = await processSingleIngredient(item.name);
-            if (success) successCount++;
-            else errorCount++;
-        }
-        statusDiv.textContent += `\n---\n🎉 Prozess für "${modeText}" abgeschlossen!\nErfolgreich: ${successCount} | Fehlgeschlagen: ${errorCount}`;
-
-    } catch (error) {
-        statusDiv.textContent += `\n❌ Schwerwiegender Fehler im Hauptprozess: ${error.message}`;
-        console.error("Schwerwiegender Fehler: ", error);
-    } finally {
-        setButtonsDisabled(false);
-    }
-}
-
-
-   // =================================================================
-    // FUNKTION FÜR REZEPT-MANAGEMENT
     // =================================================================
+    // SCHRITT 2: DATEN ANREICHERN (NEU IMPLEMENTIERT)
+    // =================================================================
+    async function enrichLexikon() {
+        statusDiv.textContent = 'Starte Anreicherung: Suche nach leeren Lexikon-Einträgen...\n';
+        setButtonsDisabled(true);
 
+        try {
+            const lexikonSnapshot = await db.collection('zutatenLexikon').get();
+            const ingredientsToEnrich = [];
+            lexikonSnapshot.forEach(doc => {
+                const data = doc.data();
+                // Ein Eintrag muss angereichert werden, wenn ihm die Kategorie oder Nährwerte fehlen
+                if (!data.kategorie || !data.nährwerte_pro_100g) {
+                    ingredientsToEnrich.push({ id: doc.id, name: data.name });
+                }
+            });
+
+            if (ingredientsToEnrich.length === 0) {
+                statusDiv.textContent += '🎉 Alle Lexikon-Einträge sind bereits vollständig!';
+                return;
+            }
+
+            statusDiv.textContent += `Gefunden: ${ingredientsToEnrich.length} Einträge zum Anreichern. Starte Prozess...\n`;
+            
+            const batch = db.batch();
+            
+            for (const ingredient of ingredientsToEnrich) {
+                statusDiv.textContent += `\n- Verarbeite "${ingredient.name}"...`;
+                try {
+                    // Rufe alle Cloud Functions auf
+                    const getCategory = functions.httpsCallable('getIngredientCategory');
+                    const categoryResult = await getCategory({ ingredientName: ingredient.name });
+
+                    const translate = functions.httpsCallable('translateIngredient');
+                    const translateResult = await translate({ ingredientName: ingredient.name });
+                    
+                    const getNutrition = functions.httpsCallable('getNutritionData');
+                    const nutritionResult = await getNutrition({ englishName: translateResult.data.englishName });
+
+                    // Extrahiere die sauberen Daten
+                    const kategorie = categoryResult.data.category;
+                    const englisch = translateResult.data.englishName;
+                    const naehrwerte = nutritionResult.data.nutrition;
+                    
+                    // Bereite die Daten für das Update im sauberen Lexikon vor
+                    const cleanData = {
+                        name: ingredient.name,
+                        kategorie: kategorie,
+                        englisch: englisch,
+                        kalorien_pro_100g: naehrwerte.calories,
+                        nährwerte_pro_100g: {
+                            protein: naehrwerte.protein,
+                            carbs: naehrwerte.carbs,
+                            fat: naehrwerte.fat
+                        }
+                    };
+                    
+                    const lexikonRef = db.collection('zutatenLexikon').doc(ingredient.id);
+                    batch.set(lexikonRef, cleanData, { merge: true });
+
+                    // Bereite die Rohdaten für das RAW-Lexikon vor
+                    const rawDataRef = db.collection('zutatenLexikonRAW').doc(ingredient.id);
+                    batch.set(rawDataRef, {
+                        name: ingredient.name,
+                        retrievedAt: new Date(),
+                        rawCategoryData: categoryResult.data.raw,
+                        rawTranslateData: translateResult.data.raw,
+                        rawNutritionData: nutritionResult.data.raw
+                    }, { merge: true });
+
+                    statusDiv.textContent += ` -> ✅ OK`;
+                    
+                } catch(err) {
+                    statusDiv.textContent += ` -> ❌ FEHLER: ${err.message}`;
+                }
+                // Kurze Pause, um Rate-Limits vorzubeugen
+                await delay(1000); 
+            }
+
+            statusDiv.textContent += '\n\nSpeichere alle Änderungen in der Datenbank...';
+            await batch.commit();
+            statusDiv.textContent += ' ✅\n\n🎉 Anreicherungsprozess abgeschlossen!';
+
+        } catch (error) {
+            statusDiv.textContent += `\n\n❌ Ein schwerwiegender Fehler ist aufgetreten: ${error.message}`;
+            console.error(error);
+        } finally {
+            setButtonsDisabled(false);
+        }
+    }
+
+
+    // =================================================================
+    // SCHRITT 3: NÄHRWERTE BERECHNEN
+    // =================================================================
     async function calculateAndSetRecipeNutrition() {
+        // Diese Funktion bleibt unverändert
         statusDiv.textContent = 'Starte Prozess: Nährwerte für Rezepte berechnen...\n';
         setButtonsDisabled(true);
 
         try {
-            // 1. Lade das gesamte Zutatenlexikon in den Speicher für schnellen Zugriff
             statusDiv.textContent += 'Lade Zutatenlexikon...';
             const lexikonSnapshot = await db.collection('zutatenLexikon').get();
             const lexikonMap = new Map();
@@ -164,14 +205,13 @@ async function processMaintenance(mode) {
             });
             statusDiv.textContent += ` ✅ (${lexikonMap.size} Einträge geladen)\n`;
 
-            // 2. Lade alle Rezepte
             statusDiv.textContent += 'Lade alle Rezepte...';
             const recipesSnapshot = await db.collection('rezepte').get();
             statusDiv.textContent += ` ✅ (${recipesSnapshot.size} Rezepte gefunden)\n\n`;
             
             const batch = db.batch();
             let recipesUpdatedCount = 0;
-            let ingredientsCreatedCount = 0;
+            let recipesSkippedCount = 0;
 
             for (const recipeDoc of recipesSnapshot.docs) {
                 const recipe = recipeDoc.data();
@@ -179,6 +219,7 @@ async function processMaintenance(mode) {
 
                 if (!recipe.ingredients || recipe.ingredients.length === 0) {
                     statusDiv.textContent += ' -> ⚠️ Keine Zutaten, übersprungen.\n';
+                    recipesSkippedCount++;
                     continue;
                 }
 
@@ -186,12 +227,11 @@ async function processMaintenance(mode) {
                 let totalProtein = 0;
                 let totalCarbs = 0;
                 let totalFat = 0;
-                let missingIngredients = [];
-                let allIngredientsFound = true;
+                let missingNutritionData = [];
+                let allIngredientsReady = true;
 
                 for (const ingredient of recipe.ingredients) {
-                    const ingredientNameKey = ingredient.name.toLowerCase();
-                    const lexikonData = lexikonMap.get(ingredientNameKey);
+                    const lexikonData = lexikonMap.get(ingredient.name.toLowerCase());
 
                     if (lexikonData && lexikonData.kalorien_pro_100g !== undefined) {
                         const factor = (ingredient.amount || 0) / 100;
@@ -200,12 +240,12 @@ async function processMaintenance(mode) {
                         totalCarbs += (lexikonData.nährwerte_pro_100g?.carbs || 0) * factor;
                         totalFat += (lexikonData.nährwerte_pro_100g?.fat || 0) * factor;
                     } else {
-                        missingIngredients.push(ingredient.name);
-                        allIngredientsFound = false;
+                        missingNutritionData.push(ingredient.name);
+                        allIngredientsReady = false;
                     }
                 }
 
-                if (allIngredientsFound) {
+                if (allIngredientsReady) {
                     const recipeRef = db.collection('rezepte').doc(recipeDoc.id);
                     batch.update(recipeRef, {
                         basis_kalorien: Math.round(totalKcal),
@@ -218,32 +258,18 @@ async function processMaintenance(mode) {
                     recipesUpdatedCount++;
                     statusDiv.textContent += ` -> ✅ Berechnet: ${Math.round(totalKcal)} kcal\n`;
                 } else {
-                    // NEU: Logik zum Anlegen fehlender Zutaten
-                    statusDiv.textContent += ` -> ⚠️ Rezept übersprungen. Folgende Zutaten fehlen im Lexikon:\n`;
-                    for (const missingName of missingIngredients) {
-                        const missingNameKey = missingName.toLowerCase();
-                        // Prüfen, ob wir es nicht schon in diesem Durchgang hinzugefügt haben
-                        if (!lexikonMap.has(missingNameKey)) {
-                            const docId = missingNameKey.replace(/\//g, '-');
-                            const newIngredientRef = db.collection('zutatenLexikon').doc(docId);
-                            batch.set(newIngredientRef, { name: missingName });
-                            
-                            // Füge es zur Map hinzu, um Duplikate im selben Batch zu vermeiden
-                            lexikonMap.set(missingNameKey, { name: missingName });
-                            ingredientsCreatedCount++;
-                            statusDiv.textContent += `    -> ➕ Lege Platzhalter für "${missingName}" an.\n`;
-                        }
-                    }
+                     recipesSkippedCount++;
+                     statusDiv.textContent += ` -> ⚠️ Rezept übersprungen (Fehlende Nährwertdaten für: ${missingNutritionData.join(', ')})\n`;
                 }
             }
 
-            if (recipesUpdatedCount > 0 || ingredientsCreatedCount > 0) {
-                statusDiv.textContent += `\nSpeichere Änderungen... (${recipesUpdatedCount} Rezepte, ${ingredientsCreatedCount} neue Zutaten)`;
+            if (recipesUpdatedCount > 0) {
+                statusDiv.textContent += `\nSpeichere Änderungen für ${recipesUpdatedCount} Rezepte...`;
                 await batch.commit();
                 statusDiv.textContent += ' ✅\n';
             }
 
-            statusDiv.textContent += `\n🎉 Prozess abgeschlossen!`;
+            statusDiv.textContent += `\n🎉 Prozess abgeschlossen! ${recipesUpdatedCount} Rezepte aktualisiert, ${recipesSkippedCount} übersprungen.`;
 
         } catch (error) {
             statusDiv.textContent += `\n\n❌ Ein schwerwiegender Fehler ist aufgetreten: ${error.message}`;
