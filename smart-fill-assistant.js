@@ -1,6 +1,6 @@
 import { capitalize } from './utils.js';
-import { showToast } from '../app.js';
-import { askToResetShoppingList } from '../app.js';
+import { showToast } from './app.js';
+import { askToResetShoppingList } from './app.js';
 
 // === DOM-ELEMENTE FÜR DEN ASSISTENTEN ===
 const smartFillModal = document.getElementById('smart-fill-modal');
@@ -16,7 +16,7 @@ const proposalContainer = document.getElementById('proposal-container');
 
 // === ZUSTAND (STATE) DES ASSISTENTEN ===
 let currentProposal = { mahlzeit: [], frühstück: [], snack: [] };
-let localRecipeData = []; // NEU: Lokale Kopie der Rezeptdaten
+let localRecipeData = [];
 let localWeeklyPlan = {};
 
 // === HAUPTFUNKTIONEN ===
@@ -26,7 +26,6 @@ let localWeeklyPlan = {};
  */
 function openSmartFillWizard(allRecipes, currentPlan) { 
   localRecipeData = allRecipes;
-  // Wir erstellen eine tiefe Kopie, um nicht versehentlich das Original zu ändern
   localWeeklyPlan = JSON.parse(JSON.stringify(currentPlan)); 
   
   step1.style.display = 'block';
@@ -42,16 +41,38 @@ function closeSmartFillWizard() {
 }
 
 /**
- * Generiert die Rezept-Vorschläge basierend auf den Regeln.
+ * NEUE LOGIK: Generiert eine ausgewogene Auswahl an Rezept-Vorschlägen.
  */
 function generateProposal() {
-    currentProposal.mahlzeit = getRandomUniqueRecipes(localRecipeData, 'mahlzeit', 3);
+    // Hole Rezepte, gruppiert nach ihrem dominanten Makro-Typ
+    const proteinMeals = getRecipesByDominantType(localRecipeData, 'protein');
+    const carbMeals = getRecipesByDominantType(localRecipeData, 'energie_carb');
+
+    if (proteinMeals.length < 2 || carbMeals.length < 1) {
+        console.warn("Nicht genügend Rezeptvielfalt für eine optimale Auswahl. Fülle mit Zufall auf.");
+        // Fallback zur alten Logik, wenn nicht genügend spezifische Rezepte da sind
+        currentProposal.mahlzeit = getRandomUniqueRecipes(localRecipeData, 'mahlzeit', 3);
+    } else {
+        // Intelligente Auswahl: 2 Protein-Gerichte, 1 Carb-Gericht
+        const shuffledProteins = proteinMeals.sort(() => 0.5 - Math.random());
+        const shuffledCarbs = carbMeals.sort(() => 0.5 - Math.random());
+        
+        currentProposal.mahlzeit = [
+            shuffledProteins[0],
+            shuffledProteins[1],
+            shuffledCarbs[0]
+        ].filter(Boolean); // .filter(Boolean) entfernt undefined, falls eine Liste leer ist
+    }
+
+    // Frühstück und Snacks bleiben zufällig
     currentProposal.frühstück = getRandomUniqueRecipes(localRecipeData, 'frühstück', 2);
     currentProposal.snack = getRandomUniqueRecipes(localRecipeData, 'snack', 2);
 }
 
+
 /**
  * Zeigt die vorgeschlagenen Rezepte im zweiten Schritt des Assistenten an.
+ * (Diese Funktion bleibt unverändert)
  */
 function renderProposal() {
     proposalContainer.innerHTML = '';
@@ -75,6 +96,7 @@ function renderProposal() {
 
 /**
  * Verteilt die finalen Rezepte intelligent im Wochenplan.
+ * (Diese Funktion bleibt unverändert, da sie die fertige Auswahl verteilt)
  */
 function distributeRecipes() {
     const selectedDays = Array.from(daySelectionContainer.querySelectorAll('input:checked')).map(cb => cb.value);
@@ -87,7 +109,6 @@ function distributeRecipes() {
         });
     }
 
-    // --- Pools für Frühstück & Snacks (einfache Rotation) ---
     const frühstückPool = [...currentProposal.frühstück];
     const snackPool = [...currentProposal.snack];
     selectedDays.forEach(day => {
@@ -101,30 +122,19 @@ function distributeRecipes() {
         }
     });
 
-    // --- NEUE, AUSBALANCIERTE LOGIK FÜR HAUPTMAHLZEITEN ---
     const sortedMahlzeiten = [...currentProposal.mahlzeit].sort((a, b) => a.haltbarkeit - b.haltbarkeit);
     if (sortedMahlzeiten.length > 0) {
-        // 1. Erstelle die exakte Liste der zu verteilenden Portionen (4/3/3 Verteilung)
         let portionsToDistribute = [];
-        if (sortedMahlzeiten[0]) portionsToDistribute.push(sortedMahlzeiten[0], sortedMahlzeiten[0], sortedMahlzeiten[0]);
-        if (sortedMahlzeiten[1]) portionsToDistribute.push(sortedMahlzeiten[1], sortedMahlzeiten[1], sortedMahlzeiten[1]);
-        if (sortedMahlzeiten[2]) {
-             // Das langlebigste Rezept bekommt die 4. Portion
-            const longestLasting = sortedMahlzeiten.sort((a, b) => b.haltbarkeit - a.haltbarkeit)[0];
-            portionsToDistribute.push(longestLasting, longestLasting, longestLasting, longestLasting);
-        }
-        // Korrigiere die Verteilung auf 3,3,4
-        portionsToDistribute = [];
         const portionsCount = [3, 3, 4];
-        sortedMahlzeiten.reverse(); // Langlebigstes zuerst für die 4 Portionen
-        sortedMahlzeiten.forEach((recipe, index) => {
-            for(let i = 0; i < portionsCount[index]; i++) {
+        const reversedSorted = [...sortedMahlzeiten].reverse(); 
+        reversedSorted.forEach((recipe, index) => {
+            if(!recipe) return;
+            const count = portionsCount[index] || 3; 
+            for(let i = 0; i < count; i++) {
                 portionsToDistribute.push(recipe);
             }
         });
 
-
-        // 2. Sammle alle leeren Hauptmahlzeit-Slots der Woche
         const dayAges = { montag: 1, dienstag: 2, mittwoch: 3, donnerstag: 4, freitag: 5, samstag: 6, sonntag: 7 };
         let emptySlots = [];
         selectedDays.forEach(day => {
@@ -135,15 +145,11 @@ function distributeRecipes() {
             });
         });
 
-        // 3. Fülle die Slots intelligent
         emptySlots.forEach(slot => {
             let bestRecipeIndex = -1;
-            // Finde das beste verfügbare Rezept für diesen Slot
             for (let i = 0; i < portionsToDistribute.length; i++) {
                 const recipe = portionsToDistribute[i];
-                // Kriterium 1: Haltbar?
                 if (recipe.haltbarkeit >= slot.age) {
-                    // Kriterium 2: Nicht dasselbe wie die andere Mahlzeit an diesem Tag?
                     const otherCategory = slot.category === 'mittagessen' ? 'abendessen' : 'mittagessen';
                     if (recipe.id !== newPlan[slot.day][otherCategory]) {
                         bestRecipeIndex = i;
@@ -152,7 +158,6 @@ function distributeRecipes() {
                 }
             }
             
-            // Fallback: Wenn alle haltbaren Rezepte schon am selben Tag sind, nimm das erste haltbare
             if (bestRecipeIndex === -1) {
                 for (let i = 0; i < portionsToDistribute.length; i++) {
                      if (portionsToDistribute[i].haltbarkeit >= slot.age) {
@@ -162,7 +167,6 @@ function distributeRecipes() {
                 }
             }
 
-            // Weise das gefundene Rezept zu und entferne es aus dem Pool
             if (bestRecipeIndex !== -1) {
                 const assignedRecipe = portionsToDistribute.splice(bestRecipeIndex, 1)[0];
                 newPlan[slot.day][slot.category] = assignedRecipe.id;
@@ -170,17 +174,15 @@ function distributeRecipes() {
         });
     }
 
-document.dispatchEvent(new CustomEvent('planUpdated', { detail: newPlan }));
+    document.dispatchEvent(new CustomEvent('planUpdated', { detail: newPlan }));
     closeSmartFillWizard();
     showToast("Wochenplan wurde intelligent gefüllt.");
-    askToResetShoppingList("Dein Wochenplan wurde durch den Assistenten aktualisiert."); // NEU
-
-
-
+    askToResetShoppingList("Dein Wochenplan wurde durch den Assistenten aktualisiert.");
 }
 
 /**
  * Tauscht ein einzelnes Rezept in der Vorschau aus.
+ * (Diese Funktion bleibt unverändert)
  */
 function handleReroll(event) {
     const target = event.target;
@@ -189,38 +191,60 @@ function handleReroll(event) {
     const recipeId = target.dataset.recipeId;
     const category = target.dataset.category;
 
-    // Finde das alte Rezept, um die Haltbarkeit zu kennen
     const oldRecipe = currentProposal[category].find(r => r.id === recipeId);
     if (!oldRecipe) return;
 
-    // Finde ein neues Rezept, das noch nicht in der Vorschau ist
     const currentIds = currentProposal[category].map(r => r.id);
     const potentialNewRecipes = localRecipeData.filter(r => 
         r.category === (category === 'mahlzeit' ? 'mahlzeit' : category) && 
         !currentIds.includes(r.id) &&
-        r.haltbarkeit === oldRecipe.haltbarkeit // Nur selbe Haltbarkeits-Kategorie
+        r.haltbarkeit === oldRecipe.haltbarkeit
     );
     
     if (potentialNewRecipes.length > 0) {
         const newRecipe = potentialNewRecipes[0];
-        // Ersetze das alte Rezept mit dem neuen
         const indexToReplace = currentProposal[category].findIndex(r => r.id === recipeId);
         currentProposal[category][indexToReplace] = newRecipe;
-        renderProposal(); // Zeichne die Vorschau neu
+        renderProposal();
     } else {
         showToast("Kein alternatives Rezept gefunden.");
     }
 }
 
+
 // === HILFSFUNKTIONEN ===
 
 /**
  * Wählt eine bestimmte Anzahl zufälliger, einzigartiger Rezepte aus einer Kategorie.
+ * (Diese Funktion bleibt als Fallback erhalten)
  */
 function getRandomUniqueRecipes(sourceArray, category, count) {
     const filtered = sourceArray.filter(r => r.category === category);
     const shuffled = filtered.sort(() => 0.5 - Math.random());
     return shuffled.slice(0, count);
+}
+
+/**
+ * NEUE HILFSFUNKTION: Findet Rezepte, bei denen der dominanteste Zutatentyp
+ * (nach Menge) einem bestimmten Typ entspricht.
+ */
+function getRecipesByDominantType(recipes, dominantType) {
+    return recipes.filter(recipe => {
+        if (recipe.category !== 'mahlzeit' || !recipe.ingredients || recipe.ingredients.length === 0) {
+            return false;
+        }
+
+        // Finde die Zutat mit der größten Menge (wir nehmen an, das ist die Hauptzutat)
+        const dominantIngredient = recipe.ingredients.reduce((prev, current) => {
+            // Wir vergleichen nur, wenn die Einheit 'g' ist, um Äpfel mit Birnen zu vermeiden
+            if (current.unit === 'g' && prev.unit === 'g') {
+                return (prev.amount > current.amount) ? prev : current;
+            }
+            return prev;
+        });
+
+        return dominantIngredient.type === dominantType;
+    });
 }
 
 

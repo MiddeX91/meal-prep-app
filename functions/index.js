@@ -1,5 +1,5 @@
-const { onCall, onDocumentWritten } = require("firebase-functions/v2/firestore");
-const { HttpsError } = require("firebase-functions/v2/https");
+const { onCall, HttpsError } = require("firebase-functions/v2/https"); // Korrigiert: onCall kommt von 'https'
+const { onDocumentWritten } = require("firebase-functions/v2/firestore"); // Korrigiert: Nur Firestore-Trigger hier
 const fetch = require("node-fetch");
 const admin = require("firebase-admin");
 
