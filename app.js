@@ -2,16 +2,7 @@
 import { openSmartFillWizard } from './smart-fill-assistant.js';
 import { capitalize } from './utils.js';
 
-// === FIREBASE KONFIGURATION & INITIALISIERUNG ===
-const firebaseConfig = {
-  apiKey: "AIzaSyAdW2TO2Z7lEalZ_hpdZQSoSD1ANiGYhQ0",
-  authDomain: "meal-prep-planer-app.firebaseapp.com",
-  projectId: "meal-prep-planer-app",
-  storageBucket: "meal-prep-planer-app.firebasestorage.app",
-  messagingSenderId: "488372391070",
-  appId: "1:488372391070:web:e57ee72bfe8779247f7f8f",
-  measurementId: "G-8KYYGQCNYF"
-};
+
 // Firebase initialisieren und die 'db'-Variable erstellen
 const app = firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();

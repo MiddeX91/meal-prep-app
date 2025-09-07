@@ -33,25 +33,8 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-functions.js"></script>
-
-    <!-- Firebase Initialisierung direkt hier -->
-    <script>
-        // FÜGE HIER DEINE PERSÖNLICHEN FIREBASE-CONFIG-DATEN EIN
-            const firebaseConfig = {
-                apiKey: "AIzaSyAdW2TO2Z7lEalZ_hpdZQSoSD1ANiGYhQ0",
-                authDomain: "meal-prep-planer-app.firebaseapp.com",
-                projectId: "meal-prep-planer-app",
-                storageBucket: "meal-prep-planer-app.firebasestorage.app",
-                messagingSenderId: "488372391070",
-                appId: "1:488372391070:web:e57ee72bfe8779247f7f8f",
-                measurementId: "G-8KYYGQCNYF"
-            };
-
-        const app = firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
-        console.log("✅ Firebase direkt in admin.html initialisiert.");
-    </script>
-    
+    <script src="firebase-config.js"></script>
+   
     <!-- Unser Admin-Skript wird als letztes geladen -->
     <script src="admin.js" defer></script>
 </body>

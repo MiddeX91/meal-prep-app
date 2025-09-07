@@ -13,6 +13,8 @@ function setButtonsDisabled(disabled) {
     enrichLexikonButton.disabled = disabled;
 }
 
+        const app = firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
 // === EVENT LISTENER ===
