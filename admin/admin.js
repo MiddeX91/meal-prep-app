@@ -36,7 +36,6 @@ fileInput.addEventListener('change', (event) => {
     reader.readAsText(file);
 });
 
-// "Lexikon anreichern" ist jetzt unser Haupt-Button zum Sammeln der Rohdaten
 enrichLexikonButton.addEventListener('click', () => {
     processMaintenance('anreichern');
 });
@@ -95,13 +94,16 @@ async function processMaintenance(mode) {
 
 /**
  * Ruft das Backend für EINE Zutat auf und speichert die Daten.
- * Enthält jetzt die intelligente Retry-Logik.
+ * Enthält jetzt eine robuste 'while'-Schleife für die Wiederholungs-Logik.
  */
 async function processSingleIngredient(ingredientName) {
     const MAX_RETRIES = 6;
     const RETRY_DELAY = 10000; // 10 Sekunden
+    let attempt = 0;
+    let success = false;
 
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    while (attempt < MAX_RETRIES && !success) {
+        attempt++;
         try {
             statusDiv.textContent += `\n- Verarbeite "${ingredientName}" (Versuch ${attempt}/${MAX_RETRIES})...`;
             
@@ -124,7 +126,7 @@ async function processSingleIngredient(ingredientName) {
             }, { merge: true });
             
             statusDiv.textContent += ` -> OK`;
-            return; // Erfolg, beende die Funktion für diese Zutat
+            success = true; // Erfolg! Die Schleife wird für diese Zutat beendet.
 
         } catch (error) {
             console.error(`[Admin] Fehler bei "${ingredientName}", Versuch ${attempt}:`, error);
