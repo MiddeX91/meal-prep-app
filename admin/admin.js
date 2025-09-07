@@ -4,7 +4,6 @@ const uploadButton = document.getElementById('upload-button');
 const fixMiscButton = document.getElementById('fix-misc-btn');
 const enrichLexikonButton = document.getElementById('enrich-lexikon-btn');
 const statusDiv = document.getElementById('status');
-let dataFromFile = [];
 
 // === HILFSFUNKTIONEN ===
 function setButtonsDisabled(disabled) {
@@ -13,8 +12,6 @@ function setButtonsDisabled(disabled) {
     enrichLexikonButton.disabled = disabled;
 }
 
-        const app = firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
 // === EVENT LISTENER ===
@@ -27,7 +24,7 @@ fileInput.addEventListener('change', (event) => {
     const reader = new FileReader();
     reader.onload = (e) => {
         try {
-            dataFromFile = JSON.parse(e.target.result);
+            const dataFromFile = JSON.parse(e.target.result);
             statusDiv.textContent = `${dataFromFile.length} Einträge in Datei gefunden. Bereit zum Verarbeiten.`;
             uploadButton.disabled = false;
         } catch (error) {
@@ -79,15 +76,23 @@ async function processMaintenance(mode) {
             return;
         }
 
-        statusDiv.textContent += `\n${itemsToProcess.length} Einträge gefunden. Starte Verarbeitung...`;
+        statusDiv.textContent += `\n${itemsToProcess.length} Einträge gefunden. Starte Verarbeitung...\n---`;
         
+        let successCount = 0;
+        let errorCount = 0;
         for (const item of itemsToProcess) {
-            await processSingleIngredient(item.name);
+            const success = await processSingleIngredient(item.name);
+            if (success) {
+                successCount++;
+            } else {
+                errorCount++;
+            }
         }
-        statusDiv.textContent += `\n\n🎉 Prozess für "${modeText}" abgeschlossen!`;
+        statusDiv.textContent += `\n---\n🎉 Prozess für "${modeText}" abgeschlossen!\nErfolgreich: ${successCount} | Fehlgeschlagen: ${errorCount}`;
 
     } catch (error) {
-        statusDiv.textContent += `\n❌ Schwerwiegender Fehler: ${error.message}`;
+        statusDiv.textContent += `\n❌ Schwerwiegender Fehler im Hauptprozess: ${error.message}`;
+        console.error("Schwerwiegender Fehler: ", error);
     } finally {
         setButtonsDisabled(false);
     }
@@ -95,52 +100,99 @@ async function processMaintenance(mode) {
 
 
 /**
- * Ruft das Backend für EINE Zutat auf und speichert die Daten.
- * Enthält jetzt eine robuste 'while'-Schleife für die Wiederholungs-Logik.
+ * Verarbeitet EINE Zutat Schritt für Schritt und ruft die einzelnen Cloud Functions auf.
+ * Enthält die Retry-Logik für die Edamam-Anfrage.
+ * @param {string} ingredientName - Der Name der zu verarbeitenden Zutat.
+ * @returns {Promise<boolean>} - True bei Erfolg, False bei Fehler.
  */
 async function processSingleIngredient(ingredientName) {
-    const MAX_RETRIES = 6;
-    const RETRY_DELAY = 10000; // 10 Sekunden
-    let attempt = 0;
-    let success = false;
+    statusDiv.textContent += `\n\n➡️ Verarbeite "${ingredientName}"...`;
+    
+    try {
+        // --- SCHRITT 1: Kategorie von Gemini holen ---
+        statusDiv.textContent += `\n   - Frage Kategorie an...`;
+        const getCategoryFunction = firebase.functions().httpsCallable('getIngredientCategory');
+        const categoryResponse = await getCategoryFunction({ ingredientName });
+        const category = categoryResponse.data.category;
+        statusDiv.textContent += ` -> ${category}`;
 
-    while (attempt < MAX_RETRIES && !success) {
-        attempt++;
-        try {
-            statusDiv.textContent += `\n- Verarbeite "${ingredientName}" (Versuch ${attempt}/${MAX_RETRIES})...`;
+        // --- SCHRITT 2: Englische Übersetzung von Gemini holen ---
+        statusDiv.textContent += `\n   - Frage Übersetzung an...`;
+        const translateFunction = firebase.functions().httpsCallable('translateIngredient');
+        const translateResponse = await translateFunction({ ingredientName });
+        const englishName = translateResponse.data.translation;
+        statusDiv.textContent += ` -> ${englishName}`;
+
+        // --- SCHRITT 3: Nährwerte von Edamam holen (mit Retry-Logik) ---
+        const MAX_RETRIES = 6;
+        const RETRY_DELAY = 10000; // 10 Sekunden
+        let edamamData = null;
+        let attempt = 0;
+        let success = false;
+
+        const getNutritionFunction = firebase.functions().httpsCallable('getNutritionData');
+
+        while (attempt < MAX_RETRIES && !success) {
+            attempt++;
+            statusDiv.textContent += `\n   - Frage Nährwerte an (Versuch ${attempt}/${MAX_RETRIES})...`;
             
-            const categorizeFunction = firebase.functions().httpsCallable('categorizeIngredient');
-            const response = await categorizeFunction({ ingredientName: ingredientName });
-            
-            console.log(`[Admin] Rohe Antwort für "${ingredientName}":`, response.data);
-            const { rawEdamamData } = response.data;
+            try {
+                const nutritionResponse = await getNutritionFunction({ englishName });
+                
+                // Prüfen, ob die Cloud Function einen internen Fehler von Edamam meldet
+                if (nutritionResponse.data.error) {
+                    throw new Error(nutritionResponse.data.error);
+                }
 
-            if (!rawEdamamData) {
-                throw new Error("Backend hat keine 'rawEdamamData' zurückgegeben.");
-            }
-            
-            const docId = ingredientName.toLowerCase().replace(/\//g, '-');
+                edamamData = nutritionResponse.data.nutrition;
+                statusDiv.textContent += ` -> OK`;
+                success = true; // Erfolg!
 
-            await db.collection('zutatenLexikonRAW').doc(docId).set({
-                name: ingredientName,
-                retrievedAt: new Date(),
-                rawData: rawEdamamData
-            }, { merge: true });
-            
-            statusDiv.textContent += ` -> OK`;
-            success = true; // Erfolg! Die Schleife wird für diese Zutat beendet.
+            } catch (error) {
+                console.error(`[Admin] Edamam-Fehler bei "${ingredientName}", Versuch ${attempt}:`, error);
+                
+                // Prüfen ob es ein Rate Limit Fehler (429) ist
+                if (error.message.includes("Status 429")) {
+                     statusDiv.textContent += ` -> Edamam-Limit (429) erreicht.`;
+                } else {
+                     statusDiv.textContent += ` -> FEHLER: ${error.message}`;
+                }
 
-        } catch (error) {
-            console.error(`[Admin] Fehler bei "${ingredientName}", Versuch ${attempt}:`, error);
-            statusDiv.textContent += ` -> FEHLER: ${error.message}`;
-
-            if (attempt < MAX_RETRIES) {
-                statusDiv.textContent += `. Warte ${RETRY_DELAY / 1000}s...`;
-                await delay(RETRY_DELAY);
-            } else {
-                statusDiv.textContent += `. Maximalversuche erreicht. Überspringe diese Zutat.`;
+                if (attempt < MAX_RETRIES) {
+                    statusDiv.textContent += `. Warte ${RETRY_DELAY / 1000}s...`;
+                    await delay(RETRY_DELAY);
+                } else {
+                    statusDiv.textContent += `. Maximalversuche erreicht.`;
+                    // Schleife wird beendet, `success` bleibt `false`
+                }
             }
         }
+        
+        // Wenn Edamam nach allen Versuchen fehlgeschlagen ist, brechen wir hier für diese Zutat ab.
+        if (!success) {
+            statusDiv.textContent += `\n   ❌ Konnte Nährwerte für "${ingredientName}" nicht abrufen. Überspringe Speichern.`;
+            return false;
+        }
+
+        // --- SCHRITT 4: Alle gesammelten Daten in Firestore speichern ---
+        statusDiv.textContent += `\n   - Speichere Daten in zutatenLexikonRAW...`;
+        const docId = ingredientName.toLowerCase().replace(/\//g, '-');
+        await db.collection('zutatenLexikonRAW').doc(docId).set({
+            name: ingredientName,
+            retrievedAt: new Date(),
+            kategorie: category,
+            englisch: englishName,
+            nährwerte_pro_100g: edamamData.totalNutrients,
+            kalorien_pro_100g: Math.round(edamamData.calories),
+            rawData: edamamData
+        }, { merge: true });
+        statusDiv.textContent += ` -> Gespeichert!`;
+
+        return true; // Alles hat geklappt
+
+    } catch (error) {
+        console.error(`[Admin] Schwerwiegender Fehler bei der Verarbeitung von "${ingredientName}":`, error);
+        statusDiv.textContent += `\n   ❌ Schwerwiegender Fehler bei "${ingredientName}": ${error.message}`;
+        return false; // Ein Fehler ist aufgetreten
     }
 }
-
