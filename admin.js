@@ -1,64 +1,34 @@
-document.addEventListener('DOMContentLoaded', () => { 
+document.addEventListener('DOMContentLoaded', () => {
+
+    // === DOM-ELEMENTE ===
+    // Werden jetzt sicher gefunden, da wir auf das Laden der Seite warten.
+    const fixMiscButton = document.getElementById('fix-misc-btn');
+    const enrichLexikonButton = document.getElementById('enrich-lexikon-btn');
+    const processRawButton = document.getElementById('process-raw-btn');
+    const calculateNutritionButton = document.getElementById('calculate-nutrition-btn');
+    const statusDiv = document.getElementById('status');
+
+    // === HILFSFUNKTIONEN ===
+    function setButtonsDisabled(disabled) {
+        fixMiscButton.disabled = disabled;
+        enrichLexikonButton.disabled = disabled;
+        processRawButton.disabled = disabled;
+        calculateNutritionButton.disabled = disabled;
+    }
+
+    const delay = ms => new Promise(res => setTimeout(res, ms));
+
+    // === EVENT LISTENER ===
+    enrichLexikonButton.addEventListener('click', () => processMaintenance('anreichern'));
+    fixMiscButton.addEventListener('click', () => processMaintenance('Sonstiges'));
+    processRawButton.addEventListener('click', processRawData);
+    calculateNutritionButton.addEventListener('click', calculateAndSetRecipeNutrition);
 
 
-// === DOM-ELEMENTE ===
-const fileInput = document.getElementById('json-file-input');
-const uploadButton = document.getElementById('upload-button');
-const fixMiscButton = document.getElementById('fix-misc-btn');
-const enrichLexikonButton = document.getElementById('enrich-lexikon-btn');
-const processRawDataButton = document.getElementById('process-raw-data-btn'); // NEUER BUTTON
-const statusDiv = document.getElementById('status');
-const calculateNutritionButton = document.getElementById('calculate-nutrition-btn'); // NEU
+    // =================================================================
+    // FUNKTIONEN FÜR DATENBANK-WARTUNG (ZUTATEN)
+    // =================================================================
 
-
-// HINWEIS: Firebase wird jetzt automatisch durch /__/firebase/init.js initialisiert.
-const db = firebase.firestore();
-const functions = firebase.functions();
-
-// === HILFSFUNKTIONEN ===
-function setButtonsDisabled(disabled) {
-    uploadButton.disabled = disabled;
-    fixMiscButton.disabled = disabled;
-    enrichLexikonButton.disabled = disabled;
-    processRawDataButton.disabled = disabled; // NEU
-        calculateNutritionButton.disabled = disabled; // NEU
-
-}
-
-const delay = ms => new Promise(res => setTimeout(res, ms));
-
-// === EVENT LISTENER ===
-// (Die Listener für fileInput, enrichLexikonButton etc. bleiben unverändert)
-fileInput.addEventListener('change', (event) => {
-    const file = event.target.files[0];
-    if (!file) { uploadButton.disabled = true; return; }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        try {
-            const dataFromFile = JSON.parse(e.target.result);
-            statusDiv.textContent = `${dataFromFile.length} Einträge in Datei gefunden. Bereit zum Verarbeiten.`;
-            uploadButton.disabled = false;
-        } catch (error) {
-            statusDiv.textContent = `Fehler: Ungültige JSON-Datei.\n${error}`;
-            uploadButton.disabled = true;
-        }
-    };
-    reader.readAsText(file);
-});
-enrichLexikonButton.addEventListener('click', () => processMaintenance('anreichern'));
-fixMiscButton.addEventListener('click', () => processMaintenance('Sonstiges'));
-uploadButton.addEventListener('click', () => alert("Diese Funktion wird später implementiert."));
-calculateNutritionButton.addEventListener('click', calculateAndSetRecipeNutrition); // NEU
-
-
-// NEUER EVENT LISTENER FÜR DEN NEUEN BUTTON
-processRawDataButton.addEventListener('click', processRawData);
-
-
-/**
- * Liest alle Dokumente aus zutatenLexikonRAW, extrahiert die wichtigen
- * Informationen und schreibt sie in die zutatenLexikon Sammlung.
- */
 async function processRawData() {
     statusDiv.textContent = 'Starte Verarbeitung der RAW-Daten...\nLese alle Dokumente aus zutatenLexikonRAW...';
     setButtonsDisabled(true);
@@ -172,162 +142,103 @@ async function processMaintenance(mode) {
 }
 
 
-/**
- * Verarbeitet EINE Zutat Schritt für Schritt und ruft die einzelnen Cloud Functions auf.
- */
-async function processSingleIngredient(ingredientName) {
-    // Diese Funktion bleibt ebenfalls wie sie war.
-    statusDiv.textContent += `\n\n➡️ Verarbeite "${ingredientName}"...`;
-    
-    try {
-        statusDiv.textContent += `\n   - Frage Kategorie an...`;
-        const getCategoryFunction = functions.httpsCallable('getIngredientCategory');
-        const categoryResponse = await getCategoryFunction({ ingredientName });
-        const category = categoryResponse.data.category;
-        statusDiv.textContent += ` -> ${category}`;
+    // =================================================================
+    // FUNKTION FÜR REZEPT-MANAGEMENT
+    // =================================================================
 
-        statusDiv.textContent += `\n   - Frage Übersetzung an...`;
-        const translateFunction = functions.httpsCallable('translateIngredient');
-        const translateResponse = await translateFunction({ ingredientName });
-        const englishName = translateResponse.data.translation;
-        statusDiv.textContent += ` -> ${englishName}`;
+    async function calculateAndSetRecipeNutrition() {
+        statusDiv.textContent = 'Starte Prozess: Nährwerte für Rezepte berechnen...\n';
+        setButtonsDisabled(true);
 
-        const MAX_RETRIES = 6;
-        const RETRY_DELAY = 10000;
-        let edamamData = null, attempt = 0, success = false;
-        const getNutritionFunction = functions.httpsCallable('getNutritionData');
+        try {
+            // 1. Lade das gesamte Zutatenlexikon in den Speicher für schnellen Zugriff
+            statusDiv.textContent += 'Lade Zutatenlexikon...';
+            const lexikonSnapshot = await db.collection('zutatenLexikon').get();
+            const lexikonMap = new Map();
+            lexikonSnapshot.forEach(doc => {
+                // Speichere unter einem normalisierten Key (kleingeschrieben)
+                lexikonMap.set(doc.data().name.toLowerCase(), doc.data());
+            });
+            statusDiv.textContent += ` ✅ (${lexikonMap.size} Einträge geladen)\n`;
 
-        while (attempt < MAX_RETRIES && !success) {
-            attempt++;
-            statusDiv.textContent += `\n   - Frage Nährwerte an (Versuch ${attempt}/${MAX_RETRIES})...`;
-            try {
-                const nutritionResponse = await getNutritionFunction({ englishName });
-                if (nutritionResponse.data.error) throw new Error(nutritionResponse.data.error);
-                edamamData = nutritionResponse.data.nutrition;
-                statusDiv.textContent += ` -> OK`;
-                success = true;
-            } catch (error) {
-                console.error(`[Admin] Edamam-Fehler bei "${ingredientName}", Versuch ${attempt}:`, error);
-                if (error.message.includes("Status 429")) statusDiv.textContent += ` -> Edamam-Limit (429) erreicht.`;
-                else statusDiv.textContent += ` -> FEHLER: ${error.message}`;
-                if (attempt < MAX_RETRIES) {
-                    statusDiv.textContent += `. Warte ${RETRY_DELAY / 1000}s...`;
-                    await delay(RETRY_DELAY);
-                } else {
-                    statusDiv.textContent += `. Maximalversuche erreicht.`;
+            // 2. Lade alle Rezepte
+            statusDiv.textContent += 'Lade alle Rezepte...';
+            const recipesSnapshot = await db.collection('rezepte').get();
+            statusDiv.textContent += ` ✅ (${recipesSnapshot.size} Rezepte gefunden)\n\n`;
+            
+            // 3. Bereite einen Batch-Write vor, um alle Änderungen auf einmal zu speichern
+            const batch = db.batch();
+            let recipesUpdatedCount = 0;
+
+            // 4. Gehe jedes Rezept durch und berechne die Nährwerte
+            for (const recipeDoc of recipesSnapshot.docs) {
+                const recipe = recipeDoc.data();
+                statusDiv.textContent += `- Verarbeite "${recipe.title}"...`;
+
+                if (!recipe.ingredients || recipe.ingredients.length === 0) {
+                    statusDiv.textContent += ' -> ⚠️ Keine Zutaten, übersprungen.\n';
+                    continue;
                 }
-            }
-        }
-        
-        if (!success) {
-            statusDiv.textContent += `\n   ❌ Konnte Nährwerte für "${ingredientName}" nicht abrufen. Überspringe Speichern.`;
-            return false;
-        }
 
-        statusDiv.textContent += `\n   - Speichere Daten in zutatenLexikonRAW...`;
-        const docId = ingredientName.toLowerCase().replace(/\//g, '-');
-        await db.collection('zutatenLexikonRAW').doc(docId).set({
-            name: ingredientName,
-            retrievedAt: new Date(),
-            kategorie: category,
-            englisch: englishName,
-            rawData: edamamData
-        }, { merge: true });
-        statusDiv.textContent += ` -> Gespeichert!`;
-        return true;
-    } catch (error) {
-        console.error(`[Admin] Schwerwiegender Fehler bei der Verarbeitung von "${ingredientName}":`, error);
-        statusDiv.textContent += `\n   ❌ Schwerwiegender Fehler bei "${ingredientName}": ${error.message}`;
-        return false;
-    }
-}
+                let totalKcal = 0;
+                let totalProtein = 0;
+                let totalCarbs = 0;
+                let totalFat = 0;
+                let missingIngredients = [];
 
-async function calculateAndSetRecipeNutrition() {
-    statusDiv.textContent = 'Starte Prozess: Nährwerte für Rezepte berechnen...\n';
-    setButtonsDisabled(true);
+                for (const ingredient of recipe.ingredients) {
+                    const lexikonData = lexikonMap.get(ingredient.name.toLowerCase());
 
-    try {
-        // 1. Lade das gesamte Zutatenlexikon in den Speicher für schnellen Zugriff
-        statusDiv.textContent += 'Lade Zutatenlexikon...';
-        const lexikonSnapshot = await db.collection('zutatenLexikon').get();
-        const lexikonMap = new Map();
-        lexikonSnapshot.forEach(doc => {
-            // Speichere unter einem normalisierten Key (kleingeschrieben)
-            lexikonMap.set(doc.data().name.toLowerCase(), doc.data());
-        });
-        statusDiv.textContent += ` ✅ (${lexikonMap.size} Einträge geladen)\n`;
-
-        // 2. Lade alle Rezepte
-        statusDiv.textContent += 'Lade alle Rezepte...';
-        const recipesSnapshot = await db.collection('rezepte').get();
-        statusDiv.textContent += ` ✅ (${recipesSnapshot.size} Rezepte gefunden)\n\n`;
-        
-        // 3. Bereite einen Batch-Write vor, um alle Änderungen auf einmal zu speichern
-        const batch = db.batch();
-        let recipesUpdatedCount = 0;
-
-        // 4. Gehe jedes Rezept durch und berechne die Nährwerte
-        for (const recipeDoc of recipesSnapshot.docs) {
-            const recipe = recipeDoc.data();
-            statusDiv.textContent += `- Verarbeite "${recipe.title}"...`;
-
-            if (!recipe.ingredients || recipe.ingredients.length === 0) {
-                statusDiv.textContent += ' -> ⚠️ Keine Zutaten, übersprungen.\n';
-                continue;
-            }
-
-            let totalKcal = 0;
-            let totalProtein = 0;
-            let totalCarbs = 0;
-            let totalFat = 0;
-            let missingIngredients = [];
-
-            for (const ingredient of recipe.ingredients) {
-                const lexikonData = lexikonMap.get(ingredient.name.toLowerCase());
-
-                if (lexikonData && lexikonData.kalorien_pro_100g !== undefined) {
-                    const factor = (ingredient.amount || 0) / 100;
-                    totalKcal += (lexikonData.kalorien_pro_100g || 0) * factor;
-                    totalProtein += (lexikonData.nährwerte_pro_100g?.protein || 0) * factor;
-                    totalCarbs += (lexikonData.nährwerte_pro_100g?.carbs || 0) * factor;
-                    totalFat += (lexikonData.nährwerte_pro_100g?.fat || 0) * factor;
-                } else {
-                    missingIngredients.push(ingredient.name);
-                }
-            }
-
-            if (missingIngredients.length > 0) {
-                statusDiv.textContent += ` -> ❌ FEHLER: Zutat(en) nicht im Lexikon gefunden: ${missingIngredients.join(', ')}\n`;
-            } else {
-                // Füge die Update-Operation zum Batch hinzu
-                const recipeRef = db.collection('rezepte').doc(recipeDoc.id);
-                batch.update(recipeRef, {
-                    basis_kalorien: Math.round(totalKcal),
-                    basis_makros: {
-                        protein: Math.round(totalProtein),
-                        carbs: Math.round(totalCarbs),
-                        fat: Math.round(totalFat)
+                    if (lexikonData && lexikonData.kalorien_pro_100g !== undefined) {
+                        const factor = (ingredient.amount || 0) / 100;
+                        totalKcal += (lexikonData.kalorien_pro_100g || 0) * factor;
+                        totalProtein += (lexikonData.nährwerte_pro_100g?.protein || 0) * factor;
+                        totalCarbs += (lexikonData.nährwerte_pro_100g?.carbs || 0) * factor;
+                        totalFat += (lexikonData.nährwerte_pro_100g?.fat || 0) * factor;
+                    } else {
+                        missingIngredients.push(ingredient.name);
                     }
-                });
-                recipesUpdatedCount++;
-                statusDiv.textContent += ` -> ✅ Berechnet: ${Math.round(totalKcal)} kcal\n`;
+                }
+
+                if (missingIngredients.length > 0) {
+                    statusDiv.textContent += ` -> ❌ FEHLER: Zutat(en) nicht im Lexikon gefunden: ${missingIngredients.join(', ')}\n`;
+                } else {
+                    // Füge die Update-Operation zum Batch hinzu
+                    const recipeRef = db.collection('rezepte').doc(recipeDoc.id);
+                    batch.update(recipeRef, {
+                        basis_kalorien: Math.round(totalKcal),
+                        basis_makros: {
+                            protein: Math.round(totalProtein),
+                            carbs: Math.round(totalCarbs),
+                            fat: Math.round(totalFat)
+                        }
+                    });
+                    recipesUpdatedCount++;
+                    statusDiv.textContent += ` -> ✅ Berechnet: ${Math.round(totalKcal)} kcal\n`;
+                }
             }
+
+            // 5. Führe den Batch-Write aus
+            if (recipesUpdatedCount > 0) {
+                statusDiv.textContent += `\nSpeichere Änderungen für ${recipesUpdatedCount} Rezepte...`;
+                await batch.commit();
+                statusDiv.textContent += ' ✅\n';
+            }
+
+            statusDiv.textContent += `\n🎉 Prozess abgeschlossen! ${recipesUpdatedCount} von ${recipesSnapshot.size} Rezepten wurden aktualisiert.`;
+
+        } catch (error) {
+            statusDiv.textContent += `\n\n❌ Ein schwerwiegender Fehler ist aufgetreten: ${error.message}`;
+            console.error(error);
+        } finally {
+            setButtonsDisabled(false);
         }
-
-        // 5. Führe den Batch-Write aus
-        if (recipesUpdatedCount > 0) {
-            statusDiv.textContent += `\nSpeichere Änderungen für ${recipesUpdatedCount} Rezepte...`;
-            await batch.commit();
-            statusDiv.textContent += ' ✅\n';
-        }
-
-        statusDiv.textContent += `\n🎉 Prozess abgeschlossen! ${recipesUpdatedCount} von ${recipesSnapshot.size} Rezepten wurden aktualisiert.`;
-
-    } catch (error) {
-        statusDiv.textContent += `\n\n❌ Ein schwerwiegender Fehler ist aufgetreten: ${error.message}`;
-        console.error(error);
-    } finally {
-        setButtonsDisabled(false);
     }
-}
-});
+
+}); // Ende des DOMContentLoaded-Listeners
+
+
+
+
+
+
