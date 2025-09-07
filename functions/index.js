@@ -1,4 +1,4 @@
-const functions = require("firebase-functions/v2/https");
+const { onCall } = require("firebase-functions/v2/https");
 const fetch = require("node-fetch");
 
 // Diese Funktion ist jetzt ein reiner "Bote"
@@ -12,6 +12,7 @@ exports.categorizeIngredient = onCall({ secrets: ["GEMINI_API_KEY", "EDAMAM_APP_
 
     if (!GEMINI_API_KEY || !EDAMAM_APP_ID || !EDAMAM_APP_KEY) {
         console.error("Fehler: API-Schlüssel wurden in der Umgebung nicht gefunden.");
+        // Wirf einen Fehler, den das Frontend fangen kann
         throw new functions.https.HttpsError('internal', 'API-Schlüssel auf dem Server nicht konfiguriert.');
     }
 
