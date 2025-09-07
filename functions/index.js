@@ -1,10 +1,11 @@
-const functions = require("firebase-functions");
+const functions = require("firebase-functions/v2/https");
 const fetch = require("node-fetch");
 
 // Diese Funktion ist jetzt ein reiner "Bote"
-exports.categorizeIngredient = functions.runWith({ secrets: ["GEMINI_API_KEY", "EDAMAM_APP_ID", "EDAMAM_APP_KEY"] }).https-onCall(async (data, context) => {
-    const ingredientName = data.ingredientName;
+exports.categorizeIngredient = onCall({ secrets: ["GEMINI_API_KEY", "EDAMAM_APP_ID", "EDAMAM_APP_KEY"] }, async (request) => {
+    const ingredientName = request.data.ingredientName;
 
+    // Greife auf die Secrets über process.env zu
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
     const EDAMAM_APP_ID = process.env.EDAMAM_APP_ID;
     const EDAMAM_APP_KEY = process.env.EDAMAM_APP_KEY;
