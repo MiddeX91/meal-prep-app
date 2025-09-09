@@ -1,215 +1,221 @@
+/**
+ * Hauptdatei für alle Cloud Functions der Meal-Prep-App.
+ * Enthält:
+ * - callable Functions für das Admin-Panel (Kategorie, Übersetzung, Nährwerte)
+ * - einen Firestore-Trigger zur automatischen Anreicherung des Zutaten-Lexikons
+ * - eine callable Function zur Generierung neuer Rezept-Ideen mit Gemini
+ */
+
+// Firebase SDKs importieren
 const { onCall } = require("firebase-functions/v2/https");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
+const admin = require("firebase-admin");
 const fetch = require("node-fetch");
-const admin = require('firebase-admin');
 
+// Firebase Admin SDK initialisieren
 admin.initializeApp();
-const db = admin.firestore();
 
-// =================================================================
-// AUFRUFBARE FUNKTIONEN (Für Admin-Panel)
-// =================================================================
-
-exports.getIngredientCategory = onCall({ secrets: ["GEMINI_API_KEY"] }, async (request) => {
-    const ingredientName = request.data.ingredientName;
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-    const categories = ['Gemüse & Obst', 'Milchprodukte', 'Fleisch & Fisch', 'Trockenwaren', 'Backzutaten', 'Gewürze & Öle', 'Getränke', 'Sonstiges'];
-    const prompt = `In welche dieser Supermarkt-Kategorien passt '${ingredientName}' am besten? Antworte NUR mit dem exakten Kategorienamen. Kategorien: [${categories.join(', ')}]`;
-    
-    const response = await askGemini(prompt, GEMINI_API_KEY);
-    const category = response.candidates[0].content.parts[0].text.trim();
-    return { category: category, raw: response };
-});
-
-exports.translateIngredient = onCall({ secrets: ["GEMINI_API_KEY"] }, async (request) => {
-    const ingredientName = request.data.ingredientName;
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-    // --- VERBESSERTER PROMPT ---
-    const prompt = `Was ist die präziseste englische Übersetzung für die Zutat '${ingredientName}' für eine Nährwert-Datenbank? Füge wichtige Details wie "canned", "cooked", "raw" oder "dried" hinzu, wenn sie für die Nährwerte relevant sind. Antworte NUR mit den übersetzten Wörtern.`;
-    
-    const response = await askGemini(prompt, GEMINI_API_KEY);
-    const englishName = response.candidates[0].content.parts[0].text.trim();
-    return { englishName: englishName, raw: response };
-});
-
-exports.getNutritionData = onCall({ secrets: ["EDAMAM_APP_ID", "EDAMAM_APP_KEY"] }, async (request) => {
-    // ... (Diese Funktion bleibt unverändert)
-    const englishName = request.data.englishName;
-    const EDAMAM_APP_ID = process.env.EDAMAM_APP_ID;
-    const EDAMAM_APP_KEY = process.env.EDAMAM_APP_KEY;
-    const ingredientQuery = `100g ${englishName}`;
-    const edamamUrl = `https://api.edamam.com/api/nutrition-data?app_id=${EDAMAM_APP_ID}&app_key=${EDAMAM_APP_KEY}&ingr=${encodeURIComponent(ingredientQuery)}`;
-
-    const edamamData = await fetchEdamamWithRetry(edamamUrl);
-
-    if (edamamData.error) {
-        return { nutrition: null, raw: edamamData };
-    }
-    
-    const nutrients = edamamData.totalNutrients;
-    const cleanNutrition = {
-        calories: Math.round(nutrients.ENERC_KCAL?.quantity || 0),
-        protein: Math.round(nutrients.PROCNT?.quantity || 0),
-        carbs: Math.round(nutrients.CHOCDF?.quantity || 0),
-        fat: Math.round(nutrients.FAT?.quantity || 0)
-    };
-    return { nutrition: cleanNutrition, raw: edamamData };
-});
-
-
-// =================================================================
-// AUTOMATISCHER TRIGGER
-// =================================================================
-
-exports.autoEnrichIngredient = onDocumentWritten("zutatenLexikon/{ingredientId}", async (event) => {
-    // ... (Diese Funktion bleibt unverändert)
-    const snapshot = event.data.after;
-    const ingredientData = snapshot.data();
-    const ingredientName = ingredientData.name;
-
-    if (!snapshot.exists || ingredientData.nährwerte_pro_100g) {
-        console.log(`Keine Aktion für "${ingredientName}" nötig (existiert nicht oder ist bereits angereichert).`);
-        return null;
-    }
-
-    console.log(`Automatischer Anreicherungsprozess für "${ingredientName}" gestartet...`);
-    
-    try {
-        const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-        const EDAMAM_APP_ID = process.env.EDAMAM_APP_ID;
-        const EDAMAM_APP_KEY = process.env.EDAMAM_APP_KEY;
-
-        const categories = ['Gemüse & Obst', 'Milchprodukte', 'Fleisch & Fisch', 'Trockenwaren', 'Backzutaten', 'Gewürze & Öle', 'Getränke', 'Sonstiges'];
-        const categoryPrompt = `In welche dieser Supermarkt-Kategorien passt '${ingredientName}' am besten? Antworte NUR mit dem exakten Kategorienamen. Kategorien: [${categories.join(', ')}]`;
-        const categoryResponse = await askGemini(categoryPrompt, GEMINI_API_KEY);
-        const kategorie = categoryResponse.candidates[0].content.parts[0].text.trim();
-
-        const translatePrompt = `Was ist die präziseste englische Übersetzung für die Zutat '${ingredientName}' für eine Nährwert-Datenbank? Füge wichtige Details wie "canned", "cooked", "raw" oder "dried" hinzu, wenn sie für die Nährwerte relevant sind. Antworte NUR mit den übersetzten Wörtern.`;
-        const translateResponse = await askGemini(translatePrompt, GEMINI_API_KEY);
-        const englisch = translateResponse.candidates[0].content.parts[0].text.trim();
-
-        const ingredientQuery = `100g ${englisch}`;
-        const edamamUrl = `https://api.edamam.com/api/nutrition-data?app_id=${EDAMAM_APP_ID}&app_key=${EDAMAM_APP_KEY}&ingr=${encodeURIComponent(ingredientQuery)}`;
-        const edamamData = await fetchEdamamWithRetry(edamamUrl);
-
-        await db.collection('zutatenLexikonRAW').doc(snapshot.id).set({
-            name: ingredientName,
-            retrievedAt: new Date(),
-            rawCategoryData: categoryResponse,
-            rawTranslateData: translateResponse,
-            rawNutritionData: edamamData
-        }, { merge: true });
-
-        if (edamamData.error) throw new Error(edamamData.error);
-        
-        const nutrients = edamamData.totalNutrients;
-        const cleanData = {
-            name: ingredientName,
-            kategorie: kategorie,
-            englisch: englisch,
-            kalorien_pro_100g: Math.round(nutrients.ENERC_KCAL?.quantity || 0),
-            nährwerte_pro_100g: {
-                protein: Math.round(nutrients.PROCNT?.quantity || 0),
-                carbs: Math.round(nutrients.CHOCDF?.quantity || 0),
-                fat: Math.round(nutrients.FAT?.quantity || 0)
-            }
-        };
-
-        return snapshot.ref.set(cleanData, { merge: true });
-
-    } catch (error) {
-        console.error(`Fehler bei der automatischen Anreicherung von "${ingredientName}":`, error);
-        return snapshot.ref.set({ error: error.message }, { merge: true });
-    }
-});
-
-
-// =================================================================
+// =============================================================
 // HILFSFUNKTIONEN
-// =================================================================
-async function askGemini(prompt, apiKey) {
-    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
-    const data = await response.json();
-    if (!response.ok || !data.candidates) {
-        throw new Error(data.error?.message || 'Ungültige Antwort von Gemini.');
-    }
-    return data;
-}
+// =============================================================
 
+/**
+ * Eine einfache Pause-Funktion.
+ * @param {number} ms - Die Wartezeit in Millisekunden.
+ */
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
+/**
+ * Führt eine fetch-Anfrage an die Edamam-API aus und wiederholt sie bei
+ * einem Rate-Limit-Fehler (Status 429) bis zu 6 Mal.
+ * @param {string} url - Die vollständige Edamam-API-URL.
+ * @returns {Promise<object>} Das JSON-Objekt von der Edamam-API.
+ */
 async function fetchEdamamWithRetry(url) {
     const MAX_RETRIES = 6;
-    const RETRY_DELAY = 10000;
+    const RETRY_DELAY = 10000; // 10 Sekunden
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        console.log(`Edamam-Versuch ${attempt}/${MAX_RETRIES} für: ${url}`);
         const response = await fetch(url);
+
         if (response.ok) {
-            try { return await response.json(); } 
-            catch (e) { return { error: "Ungültige JSON-Antwort von Edamam" }; }
+            try {
+                return await response.json();
+            } catch (e) {
+                return { error: "Ungültige JSON-Antwort von Edamam" };
+            }
         }
+
         if (response.status === 429 && attempt < MAX_RETRIES) {
+            console.log(`Status 429 erhalten. Warte ${RETRY_DELAY / 1000} Sekunden...`);
             await delay(RETRY_DELAY);
         } else {
+            console.error(`Edamam-Anfrage fehlgeschlagen mit Status: ${response.status}`);
             return { error: `Edamam API-Fehler: Status ${response.status}` };
         }
     }
 }
 
-// =================================================================
-// NEU: GEMINI REZEPT-GENERATOR FUNKTION
-// =================================================================
-exports.generateRecipeIdea = onCall({ secrets: ["GEMINI_API_KEY"] }, async (request) => {
-    const { description, tags, calories } = request.data;
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+// =============================================================
+// AUFRUFBARE FUNKTIONEN (Callable Functions) für Admin-Panel
+// =============================================================
 
-    if (!GEMINI_API_KEY) {
-        throw new functions.https.HttpsError('internal', 'GEMINI_API_KEY nicht konfiguriert.');
+exports.getIngredientCategory = onCall({ secrets: ["GEMINI_API_KEY"], cors: true }, async (request) => {
+    const ingredientName = request.data.ingredientName;
+    const apiKey = process.env.GEMINI_API_KEY;
+    const categories = ['Gemüse & Obst', 'Milchprodukte', 'Fleisch & Fisch', 'Trockenwaren', 'Backzutaten', 'Gewürze & Öle', 'Getränke', 'Sonstiges'];
+    const prompt = `In welche dieser Supermarkt-Kategorien passt '${ingredientName}' am besten? Antworte NUR mit dem exakten Kategorienamen. Kategorien: [${categories.join(', ')}]`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
+    const data = await response.json();
+    if (!response.ok || !data.candidates) { throw new functions.https.HttpsError('internal', 'Ungültige Antwort von der Gemini API.'); }
+    const category = data.candidates[0].content.parts[0].text.trim();
+    return { category };
+});
+
+exports.translateIngredient = onCall({ secrets: ["GEMINI_API_KEY"], cors: true }, async (request) => {
+    const ingredientName = request.data.ingredientName;
+    const apiKey = process.env.GEMINI_API_KEY;
+    const prompt = `Was ist die gebräuchlichste und präziseste englische Übersetzung für das Lebensmittel '${ingredientName}' zur Verwendung in einer Nährwert-Datenbank? Bei Dingen wie "Kidneybohnen (Dose)", gib den Zustand an, z.B. "canned kidney beans". Bei Dingen wie "Magerquark", gib den Fettgehalt an, z.B. "low-fat quark" oder "skim quark". Antworte NUR mit den übersetzten Wörtern.`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
+    const data = await response.json();
+    if (!response.ok || !data.candidates) { throw new functions.https.HttpsError('internal', 'Ungültige Antwort von der Gemini API.'); }
+    const englishName = data.candidates[0].content.parts[0].text.trim();
+    return { englishName };
+});
+
+exports.getNutritionData = onCall({ secrets: ["EDAMAM_APP_ID", "EDAMAM_APP_KEY"], cors: true }, async (request) => {
+    const englishName = request.data.englishName;
+    const appId = process.env.EDAMAM_APP_ID;
+    const appKey = process.env.EDAMAM_APP_KEY;
+    const ingredientQuery = `100g ${englishName}`;
+    const edamamUrl = `https://api.edamam.com/api/nutrition-data?app_id=${appId}&app_key=${appKey}&ingr=${encodeURIComponent(ingredientQuery)}`;
+    const edamamData = await fetchEdamamWithRetry(edamamUrl);
+    return { rawEdamamData: edamamData };
+});
+
+// =============================================================
+// REZEPT-GENERATOR
+// =============================================================
+
+exports.generateRecipeIdea = onCall({ secrets: ["GEMINI_API_KEY"], cors: true }, async (request) => {
+    const { description, mustHave, noGo, tags, calories, maxIngredients, geraete } = request.data;
+    const apiKey = process.env.GEMINI_API_KEY;
+    
+    // **DAS FINALE BRIEFING AN GEMINI**
+    let prompt = `Du bist ein kreativer und präziser Koch, der auf Meal-Prep spezialisiert ist. Deine Aufgabe ist es, ein Rezept zu erstellen, das exakt den folgenden Kriterien und Formatierungsregeln entspricht.\n\n`;
+    prompt += `1. Kriterien für das Rezept:\n`;
+    prompt += `- Beschreibung: "${description}"\n`;
+    if (mustHave) prompt += `- Muss enthalten: "${mustHave}"\n`;
+    if (noGo) prompt += `- Darf nicht enthalten: "${noGo}"\n`;
+    if (tags && tags.length > 0) prompt += `- Tags: ${tags.join(', ')}\n`;
+    prompt += `- Kalorien-Ziel: ca. ${calories} kcal\n`;
+    prompt += `- Maximale Hauptzutaten: ${maxIngredients} (Gewürze, Salz, Pfeffer und Öl zählen nicht zu diesem Limit).\n`;
+    if (geraete && geraete.length > 0) prompt += `- Verfügbare Küchengeräte: ${geraete.join(', ')}\n\n`;
+
+    prompt += `2. WICHTIGE INHALTS- UND FORMATIERUNGSREGELN:\n`;
+    prompt += `- Regel A (Haltbarkeit einschätzen): Schätze die Haltbarkeit in Tagen realistisch ein, wenn das Gericht im Kühlschrank gelagert wird. Berücksichtige dabei empfindliche Zutaten. Gerichte mit rohem Fisch oder Blattsalaten haben eine kurze Haltbarkeit (1-2 Tage). Gerichte mit gekochtem Fleisch oder vegetarische Eintöpfe halten länger (3-4 Tage).\n`;
+    prompt += `- Regel B ("Reifen" definieren): Setze den boolean Wert "reift" auf 'true', wenn das Gericht typischerweise am nächsten Tag besser schmeckt, weil sich die Aromen verbinden. Typische Beispiele dafür sind Eintöpfe, Gulasch oder Currys. Setze es auf 'false' für Gerichte, die frisch am besten sind, wie Salate oder Pfannengerichte.\n`;
+    prompt += `- Regel C (Zustand angeben): Für Zutaten, die gekocht mehr wiegen als roh (Reis, Nudeln, Quinoa etc.), gib IMMER den trockenen bzw. rohen Zustand an. Beispiele: "100g trockener Reis".\n`;
+    prompt += `- Regel D (Generische Namen): Gib KEINE Farben oder Sorten an. FALSCH: "Paprika (rot)". RICHTIG: "Paprika".\n`;
+    prompt += `- Regel E (Klarheit Gemüse vs. Gewürz): Unterscheide klar zwischen der frischen Zutat und dem Gewürz. Beispiele: "Chilischote" vs. "Chilipulver".\n`;
+    prompt += `- Regel F (Keine Mengen für Gewürze): Lasse bei Salz, Pfeffer, getrockneten Gewürzen und frischen Kräutern das Feld "menge_einheit" leer.\n\n`;
+
+    prompt += `3. Ausgabeformat:\n`;
+    prompt += `Gib deine Antwort als ein einziges, sauberes JSON-Objekt zurück, OHNE Markdown-Formatierung. Das JSON MUSS exakt die folgenden Schlüssel haben: "titel", "art", "haltbarkeit", "reift", "zubereitung" und "zutaten".`;
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    });
+    
+    const data = await response.json();
+    if (!response.ok || !data.candidates) {
+        console.error("Gemini API Fehler-Antwort:", data);
+        throw new functions.https.HttpsError('internal', 'Ungültige Antwort von der Gemini API.');
     }
 
-    // Erstelle einen detaillierten Prompt für Gemini
-    const prompt = `
-        Du bist ein kreativer Koch für Meal-Prep. Erstelle ein Rezept basierend auf folgenden Kriterien:
-        - Beschreibung: "${description}"
-        - Eigenschaften: ${tags.join(', ')}
-        - Kalorienziel: ca. ${calories} kcal pro Portion.
-
-        Gib deine Antwort AUSSCHLIESSLICH als sauberes JSON-Objekt zurück. Das JSON-Objekt muss exakt die folgenden Schlüssel haben:
-        - "titel": Ein kurzer, ansprechender Name für das Gericht.
-        - "art": Wähle EINEN der folgenden Werte: 'Mahlzeit', 'Frühstück', 'Snack'.
-        - "haltbarkeit": Eine geschätzte Zahl in Tagen, wie lange das Gericht im Kühlschrank haltbar ist.
-        - "reift": Ein boolean (true/false), ob das Gericht über Nacht geschmacklich besser wird.
-        - "zubereitung": Ein String mit den Zubereitungsschritten.
-        - "zutaten": Ein Array von Objekten. Jedes Objekt muss die Schlüssel "menge_einheit" (z.B. "100g", "1 Stk") und "name" haben.
-
-        Beispiel für eine Zutat: { "menge_einheit": "200g", "name": "Hähnchenbrust" }
-    `;
-
+    let rawText = data.candidates[0].content.parts[0].text;
+    
+    if (rawText.startsWith("```json")) {
+        rawText = rawText.substring(7, rawText.length - 3).trim();
+    }
+    
     try {
-        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error?.message || 'Ungültige Antwort von Gemini.');
-        }
-
-        const data = await response.json();
-        const rawText = data.candidates[0].content.parts[0].text;
-
-        // Reinige den Text, um sicherzustellen, dass es valides JSON ist
-        const jsonText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-        const recipeData = JSON.parse(jsonText);
-
-        return recipeData;
-
+        const recipeJson = JSON.parse(rawText);
+        return recipeJson;
     } catch (error) {
-        console.error("Fehler bei der Gemini-Anfrage:", error);
-        throw new functions.https.HttpsError('internal', 'Fehler bei der Kommunikation mit der Gemini-API.', error.message);
+        console.error("Fehler beim Parsen der Gemini JSON-Antwort:", rawText);
+        throw new functions.https.HttpsError('internal', 'Fehler beim Parsen des JSON von Gemini.', error.message);
     }
 });
+
+
+// =============================================================
+// AUTOMATISIERUNG (Firestore Trigger)
+// =============================================================
+
+exports.autoEnrichIngredient = onDocumentWritten("zutatenLexikon/{ingredientId}", async (event) => {
+    const snapshot = event.data?.after;
+    if (!snapshot) { 
+        console.log("Kein 'after'-Snapshot gefunden, Aktion wird übersprungen.");
+        return null; 
+    }
+
+    const ingredientData = snapshot.data();
+    if (!snapshot.exists || !ingredientData || !ingredientData.name || ingredientData.nährwerte_pro_100g) {
+        console.log(`Keine Aktion für Dokument ${snapshot.id} nötig (existiert nicht, hat keine Daten oder ist bereits angereichert).`);
+        return null;
+    }
+
+    console.log(`Automatischer Anreicherungsprozess für "${ingredientData.name}" gestartet...`);
+
+    try {
+        const getCategoryFunc = functions.httpsCallable('getIngredientCategory');
+        const translateFunc = functions.httpsCallable('translateIngredient');
+        const getNutritionFunc = functions.httpsCallable('getNutritionData');
+
+        const { category } = (await getCategoryFunc({ ingredientName: ingredientData.name })).data;
+        const { englishName } = (await translateFunc({ ingredientName: ingredientData.name })).data;
+        const { rawEdamamData } = (await getNutritionFunc({ englishName })).data;
+
+        if (rawEdamamData.error) {
+            throw new Error(`Edamam Fehler für "${ingredientData.name}": ${rawEdamamData.error}`);
+        }
+        
+        const nutrients = rawEdamamData?.totalNutrients || {};
+        const cleanData = {
+            kategorie: category,
+            englisch: englishName,
+            kalorien_pro_100g: Math.round(nutrients.ENERC_KCAL?.quantity ?? 0),
+            nährwerte_pro_100g: {
+                protein: parseFloat((nutrients.PROCNT?.quantity ?? 0).toFixed(1)),
+                carbs: parseFloat((nutrients.CHOCDF?.quantity ?? 0).toFixed(1)),
+                fat: parseFloat((nutrients.FAT?.quantity ?? 0).toFixed(1)),
+            },
+        };
+
+        const db = admin.firestore();
+        const batch = db.batch();
+
+        batch.update(snapshot.ref, cleanData);
+        batch.set(db.collection('zutatenLexikonRAW').doc(snapshot.id), {
+            name: ingredientData.name,
+            retrievedAt: new Date(),
+            rawData: rawEdamamData, // KORREKTE VARIABLE VERWENDET
+        }, { merge: true });
+
+        await batch.commit();
+        console.log(`Erfolgreich "${ingredientData.name}" angereichert.`);
+
+    } catch (error) {
+        console.error(`Fehler beim Anreichern von "${ingredientData.name}":`, error);
+        // Optional: Ein Feld im Dokument setzen, um den Fehler zu markieren
+        await snapshot.ref.set({ error: error.message }, { merge: true });
+    }
+});
+

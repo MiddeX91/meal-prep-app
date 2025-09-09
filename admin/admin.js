@@ -1,51 +1,55 @@
-// Importiere die Initialisierungs-Funktionen aus den Modulen
 import { initDatabasePage } from './admin-database.js';
 import { initGeneratorPage } from './admin-generator.js';
 
-document.addEventListener('DOMContentLoaded', async () => {
-
-    // === AUTHENTIFIZIERUNG ===
-    try {
-        await firebase.auth().signInAnonymously();
-        console.log('✅ Anonym angemeldet. Bereit für Aktionen.');
-    } catch (error) {
-        console.error("❌ Fehler bei der anonymen Anmeldung:", error);
-        alert('Fehler bei der Firebase-Anmeldung. Das Admin-Panel wird nicht funktionieren.');
-        return;
-    }
-
-    // === FIREBASE-VERKNÜPFUNGEN (werden an Module weitergegeben) ===
+document.addEventListener('DOMContentLoaded', () => {
     const db = firebase.firestore();
     const functions = firebase.functions();
+    const statusDiv = document.getElementById('status-main');
 
-    // === NAVIGATIONSLOGIK ===
-    const navLinks = document.querySelectorAll('.admin-nav a');
-    const pages = document.querySelectorAll('.admin-page');
+    firebase.auth().signInAnonymously()
+        .then(() => {
+            if (statusDiv) statusDiv.textContent = '✅ Anonym angemeldet. Bereit für Aktionen.';
+        })
+        .catch((error) => {
+            if (statusDiv) statusDiv.textContent = `❌ Fehler bei der anonymen Anmeldung: ${error.message}`;
+            console.error("Anmeldefehler:", error);
+        });
 
-    function navigateTo(hash) {
-        const targetHash = hash || '#database'; // Standardseite
-        
+    const navLinks = document.querySelectorAll('nav a');
+    const pages = document.querySelectorAll('.page');
+
+    const pageInitializers = {
+        'database': initDatabasePage,
+        'generator': initGeneratorPage,
+    };
+
+    function navigateTo(pageId) {
+        // Schaltet nur noch die 'active'-Klasse um
         pages.forEach(page => {
-            const pageId = `page-${targetHash.substring(1)}`;
-            if (page.id === pageId) {
-                page.classList.add('active');
-                // Rufe die passende Initialisierungs-Funktion für die aktive Seite auf
-                if (page.id === 'page-database') {
-                    initDatabasePage(db, functions);
-                } else if (page.id === 'page-generator') {
-                    initGeneratorPage(db, functions);
-                }
-            } else {
-                page.classList.remove('active');
-            }
+            page.classList.toggle('active', page.id === `page-${pageId}`);
+        });
+        navLinks.forEach(link => {
+            link.classList.toggle('active', link.dataset.page === pageId);
         });
 
-        navLinks.forEach(link => {
-            link.classList.toggle('active', link.getAttribute('href') === targetHash);
-        });
+        const initFunc = pageInitializers[pageId];
+        const pageElement = document.getElementById(`page-${pageId}`);
+        
+        if (initFunc && pageElement && !pageElement.hasAttribute('data-initialized')) {
+            initFunc(db, functions, pageElement);
+            pageElement.setAttribute('data-initialized', 'true');
+        }
     }
 
-    window.addEventListener('hashchange', () => navigateTo(window.location.hash));
-    navigateTo(window.location.hash); // Initiale Navigation beim Laden
+    navLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const pageId = e.target.dataset.page;
+            navigateTo(pageId);
+        });
+    });
+    
+    // Initialisiere die Logik für die bereits sichtbare 'database'-Seite
+    navigateTo('database');
 });
 

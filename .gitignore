@@ -10,6 +10,7 @@ firebase-debug.*.log*
 serviceAccountKey.json
 firebase-config.js
 admin/firebase-config.js
+onboarding.html
 
 # Firebase cache
 .firebase/

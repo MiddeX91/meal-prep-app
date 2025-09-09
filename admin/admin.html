@@ -4,112 +4,185 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Panel</title>
-    <!-- Verlinkung zur Admin-spezifischen CSS-Datei im selben Ordner -->
+    <!-- Korrekter Pfad zur CSS-Datei im selben Ordner -->
     <link rel="stylesheet" href="admin-styles.css">
 </head>
 <body>
 
-    <h1>Admin Panel</h1>
+    <div class="admin-container">
+        <header>
+            <h1>Admin Panel</h1>
+            <nav>
+                <!-- Der erste Link ist standardmäßig aktiv -->
+                <a href="#" class="active" data-page="database">Datenbank-Wartung</a>
+                <a href="#" data-page="generator">Rezept-Generator</a>
+                <a href="#" data-page="settings">Einstellungen</a>
+            </nav>
+        </header>
 
-    <!-- Navigation -->
-    <nav class="admin-nav">
-        <a href="#database" class="active">Datenbank-Wartung</a>
-        <a href="#generator">Rezept-Generator</a>
-        <a href="#settings">Einstellungen</a>
-    </nav>
+        <main>
+            <p id="status-main">Lade Firebase-Verbindung...</p>
 
-    <!-- Seiten-Container -->
-    <main>
-        <!-- Seite 1: Datenbank-Wartung -->
-        <div id="page-database" class="admin-page">
-            <div class="container">
+            <!-- ========================================================== -->
+            <!-- SEITE 1: DATENBANK-WARTUNG (Standardmäßig aktiv) -->
+            <!-- ========================================================== -->
+            <div id="page-database" class="page active">
                 <h2>Datenbank-Wartung</h2>
-                <p>Führe diese Schritte in der richtigen Reihenfolge aus, um die Datenbank zu pflegen und zu aktualisieren.</p>
-                
-                <h4 style="margin-top: 20px;">Schritt 1: Inventur</h4>
-                <p>Sucht in allen Rezepten nach Zutaten, die noch nicht im Lexikon vorhanden sind, und legt leere Platzhalter dafür an.</p>
-                <button id="find-missing-btn" class="button-secondary">Fehlende Zutaten im Lexikon anlegen</button>
-                
-                <h4 style="margin-top: 20px;">Schritt 2: Daten anreichern</h4>
-                <p>Holt für alle leeren Platzhalter im Lexikon die Nährwertdaten und Kategorien von externen APIs.</p>
-                <button id="enrich-lexikon-btn" class="button-secondary">Lexikon mit Nährwerten anreichern</button>
+                <div class="wartung-prozess">
+                    <h4>Schritt 1: Inventur</h4>
+                    <p>Findet alle Zutaten in Rezepten, die im Lexikon fehlen, und legt sie als Platzhalter an.</p>
+                    <button id="find-missing-btn">Fehlende Zutaten im Lexikon anlegen</button>
+                    <hr>
+                    <h4>Schritt 2: Daten anreichern</h4>
+                    <p>Sucht nach leeren Platzhaltern im Lexikon und füllt sie mit Daten von Gemini & Edamam.</p>
+                    <button id="enrich-lexikon-btn">Lexikon mit Nährwerten anreichern</button>
+                    <hr>
+                    <h4>Schritt 3: Rezepte berechnen</h4>
+                    <p>Berechnet die Nährwerte für alle Rezepte basierend auf den Lexikon-Daten.</p>
+                    <button id="calculate-nutrition-btn">Nährwerte für alle Rezepte berechnen</button>
+                </div>
+                <hr>
+                <h3>Debugging</h3>
+                <p>Berechnet die Nährwerte für ein einzelnes Rezept und zeigt eine detaillierte Aufschlüsselung an.</p>
+                <button id="debug-recipe-btn">Rezept-Nährwerte debuggen</button>
+                <div id="status" class="status-box">Warte auf eine Aktion...</div>
+            </div>
 
-                <h4 style="margin-top: 20px;">Schritt 3: Rezepte aktualisieren</h4>
-                <p>Berechnet die Gesamt-Nährwerte für alle Rezepte basierend auf den Daten im Lexikon und speichert sie.</p>
-                <button id="calculate-nutrition-btn" class="button-secondary">Nährwerte für alle Rezepte berechnen</button>
+            <!-- ========================================================== -->
+            <!-- SEITE 2: REZEPT-GENERATOR -->
+            <!-- ========================================================== -->
+            <h1>Gemini Rezept-Generator</h1>
 
-                <hr style="margin: 30px 0;">
+    <!-- Eingabebereich -->
+<div id="page-generator" class="page">
+    <h2>Rezept-Generator (v3.0)</h2>
 
-                <h4>Debugging-Werkzeuge</h4>
-                <button id="debug-recipe-btn" class="button-secondary">Rezept-Nährwerte debuggen</button>
-                
-                <div id="status">Warte auf eine Aktion...</div>
+    <!-- Phase 1: Das Briefing an die KI -->
+    <div class="card">
+        <h3>1. Dein Wunsch-Rezept</h3>
+        <p>Beschreibe, was du dir vorstellst. Je detaillierter, desto besser das Ergebnis.</p>
+        
+        <form id="generator-form">
+            <!-- Hauptbeschreibung -->
+            <div class="form-group">
+                <label for="recipe-description">Beschreibung</label>
+                <input type="text" id="recipe-description" placeholder="z.B. Ein scharfes Hähnchen-Curry mit Kokosmilch">
+            </div>
+
+            <!-- Zutaten-Steuerung -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="form-group">
+                    <label for="must-have-ingredients">Muss enthalten (kommagetrennt)</label>
+                    <input type="text" id="must-have-ingredients" placeholder="z.B. Linsen, Süßkartoffel">
+                </div>
+                <div class="form-group">
+                    <label for="no-go-ingredients">Darf nicht enthalten (kommagetrennt)</label>
+                    <input type="text" id="no-go-ingredients" placeholder="z.B. Pilze, Koriander">
+                </div>
+            </div>
+
+            <!-- Tags & Eigenschaften -->
+            <div class="form-group">
+                <label>Eigenschaften & Rezept-Typ</label>
+                <div class="checkbox-grid">
+                    <div><input type="checkbox" id="tag-veggie" name="tag" value="Vegetarisch"><label for="tag-veggie">Vegetarisch</label></div>
+                    <div><input type="checkbox" id="tag-vegan" name="tag" value="Vegan"><label for="tag-vegan">Vegan</label></div>
+                    <div><input type="checkbox" id="tag-lowcarb" name="tag" value="Low-Carb"><label for="tag-lowcarb">Low-Carb</label></div>
+                    <div><input type="checkbox" id="tag-schnell" name="tag" value="Schnell (< 30min)"><label for="tag-schnell">Schnell (&lt; 30min)</label></div>
+                    <div><input type="checkbox" id="tag-eintopf" name="tag" value="Eintopf"><label for="tag-eintopf">Eintopf</label></div>
+                    <div><input type="checkbox" id="tag-salat" name="tag" value="Salat"><label for="tag-salat">Salat</label></div>
+                    <div><input type="checkbox" id="tag-ofen" name="tag" value="Ofengericht"><label for="tag-ofen">Ofengericht</label></div>
+                    <div><input type="checkbox" id="tag-pfanne" name="tag" value="Pfannengericht"><label for="tag-pfanne">Pfannengericht</label></div>
+                </div>
+            </div>
+            
+            <!-- Küchengeräte -->
+            <div class="form-group">
+                <label>Verfügbare Küchengeräte</label>
+                <div class="checkbox-grid">
+                    <div><input type="checkbox" id="geraet-herd" name="geraet" value="Herd" checked><label for="geraet-herd">Herd</label></div>
+                    <div><input type="checkbox" id="geraet-ofen" name="geraet" value="Ofen" checked><label for="geraet-ofen">Ofen</label></div>
+                    <div><input type="checkbox" id="geraet-mikrowelle" name="geraet" value="Mikrowelle"><label for="geraet-mikrowelle">Mikrowelle</label></div>
+                    <div><input type="checkbox" id="geraet-hlf" name="geraet" value="Heißluftfritteuse"><label for="geraet-hlf">Heißluftfritteuse</label></div>
+                    <div><input type="checkbox" id="geraet-kontaktgrill" name="geraet" value="Kontaktgrill"><label for="geraet-kontaktgrill">Kontaktgrill</label></div>
+                    <div><input type="checkbox" id="geraet-reiskocher" name="geraet" value="Reiskocher"><label for="geraet-reiskocher">Reiskocher</label></div>
+                    <div><input type="checkbox" id="geraet-mixer" name="geraet" value="Mixer"><label for="geraet-mixer">Mixer</label></div>
+                </div>
+            </div>
+
+             <!-- Kalorien & Komplexität -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="form-group">
+                    <label for="target-calories">Kalorien-Ziel</label>
+                    <input type="number" id="target-calories" value="500" step="50">
+                </div>
+                <div class="form-group">
+                    <label for="max-ingredients">Maximale Hauptzutaten</label>
+                    <input type="number" id="max-ingredients" value="10" step="1">
+                </div>
+            </div>
+
+            <button type="button" id="generate-btn" class="button-primary">Rezept-Idee generieren</button>
+        </form>
+    </div>
+
+    <!-- Phase 2: Der Editor zur Bearbeitung -->
+    <div id="editor-section" class="card" style="display: none;">
+        <h3>2. Vorschlag bearbeiten & prüfen</h3>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="form-group"><label for="recipe-title">Titel</label><input type="text" id="recipe-title"></div>
+            <div class="form-group"><label for="recipe-art">Art</label><select id="recipe-art"><option>Frühstück</option><option selected>Mahlzeit</option><option>Snack</option></select></div>
+            <div class="form-group"><label for="recipe-haltbarkeit">Haltbarkeit (Tage)</label><input type="number" id="recipe-haltbarkeit" value="3"></div>
+            <div class="form-group flex items-center mt-6"><input type="checkbox" id="recipe-reift" class="mr-2"><label for="recipe-reift">"Reift nach" (Geschmack wird besser)</label></div>
+        </div>
+
+        <div class="form-group">
+            <label>Zutaten</label>
+            <div id="ingredients-container">
+                <!-- Zutaten werden hier dynamisch eingefügt -->
             </div>
         </div>
 
-        <!-- Seite 2: Rezept-Generator -->
-        <div id="page-generator" class="admin-page">
-            <div id="briefing-section" class="container">
-                <h2>1. Briefing für Gemini</h2>
-                <div class="form-group">
-                    <label for="recipe-description">Beschreibe dein Wunsch-Rezept</label>
-                    <input type="text" id="recipe-description" placeholder="z.B. Ein leichtes, vegetarisches Pfannengericht mit Tofu">
-                </div>
-                <div class="form-group">
-                    <label>Eigenschaften (Tags)</label>
-                    <div class="checkbox-group">
-                        <span class="checkbox-item"><input type="checkbox" id="tag-vegetarisch" value="Vegetarisch"> Vegetarisch</span>
-                        <span class="checkbox-item"><input type="checkbox" id="tag-vegan" value="Vegan"> Vegan</span>
-                        <span class="checkbox-item"><input type="checkbox" id="tag-lowcarb" value="Low-Carb"> Low-Carb</span>
-                        <span class="checkbox-item"><input type="checkbox" id="tag-schnell" value="Schnell (< 30min)"> Schnell (&lt; 30min)</span>
-                        <span class="checkbox-item"><input type="checkbox" id="tag-reift" value="Reift nach"> "Reift nach"</span>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="calories-target">Kalorien-Ziel (ca.)</label>
-                    <input type="number" id="calories-target" value="500">
-                </div>
-                <button id="generate-btn" class="button-primary">Rezept-Idee generieren</button>
-            </div>
-        
-            <div id="loader"><p>Gemini denkt nach...</p></div>
-        
-            <div id="editor-section" class="container admin-page">
-                <h2>2. Vorschau & Bearbeitung</h2>
-                <div class="form-group"><label for="edit-title">Titel</label><input type="text" id="edit-title"></div>
-                <div class="form-group"><label for="edit-art">Art</label><select id="edit-art"><option value="Mahlzeit">Mahlzeit</option><option value="Frühstück">Frühstück</option><option value="Snack">Snack</option></select></div>
-                <div class="form-group"><label for="edit-haltbarkeit">Haltbarkeit (Tage)</label><input type="number" id="edit-haltbarkeit"></div>
-                <div class="form-group"><label for="edit-zubereitung">Zubereitung</label><textarea id="edit-zubereitung"></textarea></div>
-                <div class="form-group">
-                    <label>Zutaten</label>
-                    <div id="ingredients-container"></div>
-                    <button id="add-ingredient-btn" class="button-secondary" style="margin-top: 10px;">+ Zutat hinzufügen</button>
-                </div>
-                <button id="check-nutrition-btn" class="button-secondary">Nährwerte prüfen & einfügen</button>
-                <div id="nutrition-results"></div>
-                <hr style="margin: 20px 0;">
-                <button id="save-btn" class="button-save">Rezept in Datenbank speichern</button>
-                <button id="regenerate-btn" class="button-secondary">Neue Idee generieren</button>
-            </div>
+        <div class="form-group">
+            <label for="recipe-zubereitung">Zubereitung</label>
+            <textarea id="recipe-zubereitung" rows="8"></textarea>
         </div>
 
-        <!-- Seite 3: Einstellungen -->
-        <div id="page-settings" class="admin-page">
-            <div class="container">
+        <div class="flex items-start gap-4">
+            <button type="button" id="check-nutrition-btn" class="button-secondary">Nährwerte prüfen & einfügen</button>
+            <div id="nutrition-result" class="flex-grow">
+                <!-- Nährwerte werden hier angezeigt -->
+            </div>
+        </div>
+        
+        <hr class="my-6">
+
+        <button type="button" id="save-recipe-btn" class="button-primary">Rezept speichern</button>
+    </div>
+
+    <div id="generator-status" class="status-box">Warte auf eine Aktion...</div>
+</div>
+
+
+            <!-- ========================================================== -->
+            <!-- SEITE 3: EINSTELLUNGEN -->
+            <!-- ========================================================== -->
+            <div id="page-settings" class="page">
                 <h2>Einstellungen</h2>
                 <p>Dieser Bereich ist für zukünftige Einstellungen reserviert.</p>
             </div>
-        </div>
-    </main>
+        </main>
+    </div>
 
     <!-- Firebase SDKs -->
     <script src="/__/firebase/8.10.1/firebase-app.js"></script>
+    <script src="/__/firebase/8.10.1/firebase-auth.js"></script>
     <script src="/__/firebase/8.10.1/firebase-firestore.js"></script>
     <script src="/__/firebase/8.10.1/firebase-functions.js"></script>
-    <script src="/__/firebase/8.10.1/firebase-auth.js"></script>
     <script src="/__/firebase/init.js"></script>
-
-    <!-- Unser zentrales Admin-Skript als MODUL laden -->
+    
+    <!-- Haupt-Controller als Modul laden -->
     <script type="module" src="admin.js"></script>
 </body>
 </html>
