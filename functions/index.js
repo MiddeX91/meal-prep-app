@@ -175,13 +175,16 @@ exports.autoEnrichIngredient = onDocumentWritten("zutatenLexikon/{ingredientId}"
     console.log(`Automatischer Anreicherungsprozess für "${ingredientData.name}" gestartet...`);
 
     try {
-        const getCategoryFunc = functions.httpsCallable('getIngredientCategory');
-        const translateFunc = functions.httpsCallable('translateIngredient');
-        const getNutritionFunc = functions.httpsCallable('getNutritionData');
-
-        const { category } = (await getCategoryFunc({ ingredientName: ingredientData.name })).data;
-        const { englishName } = (await translateFunc({ ingredientName: ingredientData.name })).data;
-        const { rawEdamamData } = (await getNutritionFunc({ englishName })).data;
+        // KORREKTUR: Die Callable Functions direkt aufrufen anstatt alles neu zu implementieren.
+        // Das ist sauberer und vermeidet Code-Duplizierung.
+        const categoryResult = await exports.getIngredientCategory({ data: { ingredientName: ingredientData.name } });
+        const translateResult = await exports.translateIngredient({ data: { ingredientName: ingredientData.name } });
+        
+        const category = categoryResult.category;
+        const englishName = translateResult.englishName;
+        
+        const nutritionResult = await exports.getNutritionData({ data: { englishName } });
+        const rawEdamamData = nutritionResult.rawEdamamData;
 
         if (rawEdamamData.error) {
             throw new Error(`Edamam Fehler für "${ingredientData.name}": ${rawEdamamData.error}`);
@@ -206,7 +209,7 @@ exports.autoEnrichIngredient = onDocumentWritten("zutatenLexikon/{ingredientId}"
         batch.set(db.collection('zutatenLexikonRAW').doc(snapshot.id), {
             name: ingredientData.name,
             retrievedAt: new Date(),
-            rawData: rawEdamamData, // KORREKTE VARIABLE VERWENDET
+            rawData: rawEdamamData,
         }, { merge: true });
 
         await batch.commit();
@@ -214,8 +217,6 @@ exports.autoEnrichIngredient = onDocumentWritten("zutatenLexikon/{ingredientId}"
 
     } catch (error) {
         console.error(`Fehler beim Anreichern von "${ingredientData.name}":`, error);
-        // Optional: Ein Feld im Dokument setzen, um den Fehler zu markieren
         await snapshot.ref.set({ error: error.message }, { merge: true });
     }
 });
-
