@@ -14,7 +14,10 @@ export function initGeneratorPage(db, functions, pageElement) {
     // === DOM-ELEMENTE ===
     const generatorForm = pageElement.querySelector('#generator-form');
     const recipeDescription = pageElement.querySelector('#recipe-description');
+    const mustHaveInput = pageElement.querySelector('#must-have-ingredients');
+    const noGoInput = pageElement.querySelector('#no-go-ingredients');
     const targetCalories = pageElement.querySelector('#target-calories');
+    const maxIngredientsInput = pageElement.querySelector('#max-ingredients');
     const generateBtn = pageElement.querySelector('#generate-btn');
     const editorSection = pageElement.querySelector('#editor-section');
     const recipeTitleInput = pageElement.querySelector('#recipe-title');
@@ -27,10 +30,7 @@ export function initGeneratorPage(db, functions, pageElement) {
     const checkNutritionBtn = pageElement.querySelector('#check-nutrition-btn');
     const saveRecipeBtn = pageElement.querySelector('#save-recipe-btn');
     const statusDiv = pageElement.querySelector('#generator-status');
-
-    // ... (Sicherheitsprüfung für alle Elemente) ...
     
-    // === LOKALER STATUS ===
     let localZutatenLexikon = {};
     let lastCalculatedNutrition = null;
 
@@ -66,7 +66,6 @@ export function initGeneratorPage(db, functions, pageElement) {
             const result = await generateRecipeFunc(requestData);
             const recipe = result.data;
 
-            // Fülle Editor-Felder
             recipeTitleInput.value = recipe.titel || '';
             recipeArtSelect.value = recipe.art || 'Mahlzeit';
             recipeHaltbarkeitInput.value = recipe.haltbarkeit || 3;
@@ -301,7 +300,7 @@ export function initGeneratorPage(db, functions, pageElement) {
     // =============================================================
 
     function findBestLexikonMatch(geminiName, lexikonEntries) {
-        const stopWords = ['vom', 'von', 'mit', 'und', 'in', 'aus', 'gehackt', 'frisch', 'getrocknet'];
+        const stopWords = ['vom', 'von', 'mit', 'und', 'in', 'aus', 'gehackt', 'frisch', 'getrocknet', 'dose', 'in', 'eingelegt'];
         
         const normalizeAndTokenize = (name) => {
             return name.toLowerCase()
@@ -336,7 +335,7 @@ export function initGeneratorPage(db, functions, pageElement) {
             }
         }
         
-        if (highestScore > 3) { 
+        if (highestScore > 4) { 
             return bestMatch;
         }
 

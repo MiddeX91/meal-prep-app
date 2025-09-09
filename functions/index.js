@@ -116,15 +116,15 @@ exports.generateRecipeIdea = onCall({ secrets: ["GEMINI_API_KEY"], cors: true },
     if (geraete && geraete.length > 0) prompt += `- Verfügbare Küchengeräte: ${geraete.join(', ')}\n\n`;
 
     prompt += `2. WICHTIGE INHALTS- UND FORMATIERUNGSREGELN:\n`;
-    prompt += `- Regel A (Haltbarkeit einschätzen): Schätze die Haltbarkeit in Tagen realistisch ein, wenn das Gericht im Kühlschrank gelagert wird. Berücksichtige dabei empfindliche Zutaten. Gerichte mit rohem Fisch oder Blattsalaten haben eine kurze Haltbarkeit (1-2 Tage). Gerichte mit gekochtem Fleisch oder vegetarische Eintöpfe halten länger (3-4 Tage).\n`;
-    prompt += `- Regel B ("Reifen" definieren): Setze den boolean Wert "reift" auf 'true', wenn das Gericht typischerweise am nächsten Tag besser schmeckt, weil sich die Aromen verbinden. Typische Beispiele dafür sind Eintöpfe, Gulasch oder Currys. Setze es auf 'false' für Gerichte, die frisch am besten sind, wie Salate oder Pfannengerichte.\n`;
-    prompt += `- Regel C (Zustand angeben): Für Zutaten, die gekocht mehr wiegen als roh (Reis, Nudeln, Quinoa etc.), gib IMMER den trockenen bzw. rohen Zustand an. Beispiele: "100g trockener Reis".\n`;
+    prompt += `- Regel A (Haltbarkeit einschätzen): Schätze die Haltbarkeit in Tagen realistisch ein. Berücksichtige empfindliche Zutaten. Gerichte mit rohem Fisch oder Blattsalaten sind 1-2 Tage haltbar. Gerichte mit gekochtem Fleisch oder vegetarische Eintöpfe halten 3-4 Tage.\n`;
+    prompt += `- Regel B ("Reifen" definieren): Setze "reift" auf 'true', wenn das Gericht am nächsten Tag besser schmeckt (Eintöpfe, Gulasch, Currys). Setze es auf 'false' für frische Gerichte (Salate, Pfannengerichte).\n`;
+    prompt += `- Regel C (Zustand angeben): Für Zutaten wie Reis, Nudeln, Quinoa, Linsen, gib IMMER den trockenen Zustand an. Beispiel: "100g trockener Reis".\n`;
     prompt += `- Regel D (Generische Namen): Gib KEINE Farben oder Sorten an. FALSCH: "Paprika (rot)". RICHTIG: "Paprika".\n`;
-    prompt += `- Regel E (Klarheit Gemüse vs. Gewürz): Unterscheide klar zwischen der frischen Zutat und dem Gewürz. Beispiele: "Chilischote" vs. "Chilipulver".\n`;
+    prompt += `- Regel E (Klarheit): Unterscheide klar zwischen Gemüse und Gewürz. Beispiel: "Chilischote" vs. "Chilipulver".\n`;
     prompt += `- Regel F (Keine Mengen für Gewürze): Lasse bei Salz, Pfeffer, getrockneten Gewürzen und frischen Kräutern das Feld "menge_einheit" leer.\n\n`;
 
     prompt += `3. Ausgabeformat:\n`;
-    prompt += `Gib deine Antwort als ein einziges, sauberes JSON-Objekt zurück, OHNE Markdown-Formatierung. Das JSON MUSS exakt die folgenden Schlüssel haben: "titel", "art", "haltbarkeit", "reift", "zubereitung" und "zutaten".`;
+    prompt += `Gib deine Antwort als ein einziges, sauberes JSON-Objekt zurück, OHNE Markdown. Das JSON MUSS die Schlüssel "titel", "art", "haltbarkeit", "reift", "zubereitung" und "zutaten" haben.`;
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
     const response = await fetch(url, {
